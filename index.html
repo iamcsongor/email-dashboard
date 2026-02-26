@@ -1,0 +1,1643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Email Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@azure/msal-browser@3.0.0/lib/msal-browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  /* ── Design Tokens ──────────────────────────── */
+  :root {
+    /* Glass system */
+    --glass-opacity: 0.16;
+    --glass-blur: 30px;
+    --glass-radius: 24px;
+    --glass-border: rgba(255,255,255,0.25);
+    --glass-shadow: 0 20px 60px rgba(0,0,0,0.25);
+    --glass-highlight: inset 0 1px 0 rgba(255,255,255,0.35);
+    --glass-gradient: linear-gradient(to bottom, rgba(255,255,255,0.20), rgba(255,255,255,0.10));
+
+    /* Text */
+    --text-primary: rgba(255,255,255,0.9);
+    --text-secondary: rgba(255,255,255,0.65);
+
+    /* Motion */
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+    --duration-hover: 250ms;
+    --duration-state: 350ms;
+
+    /* Dashboard tokens (unchanged) */
+    --bg:       #f0f2f9;
+    --card:     #ffffff;
+    --primary:  #5b6af9;
+    --sent:     #f97066;
+    --received: #5b6af9;
+    --green:    #22c55e;
+    --text-d:   #1e2035;
+    --muted:    #6b7280;
+    --border:   #e5e7eb;
+    --radius:   14px;
+    --shadow:   0 2px 16px rgba(0,0,0,0.06);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text-d);
+    min-height: 100vh;
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEVEL 0 — Background Image (Depth-Blur)
+     ═══════════════════════════════════════════════ */
+  #login-screen {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    position: relative;
+    overflow: hidden;
+    background: #1a2e0a;
+  }
+
+  /* Photographic background — heavy Gaussian blur removes all fine detail */
+  #login-screen::before {
+    content: '';
+    position: absolute;
+    inset: -10%;
+    z-index: 0;
+    background:
+      /* Warm sun-ray spill, upper-left (ambient light source) */
+      radial-gradient(ellipse 60% 55% at 28% 12%, rgba(235,218,160,0.70) 0%, rgba(190,200,120,0.30) 40%, transparent 68%),
+      /* Secondary warm glow, upper-right */
+      radial-gradient(ellipse 45% 40% at 72% 8%, rgba(210,195,140,0.45) 0%, transparent 60%),
+      /* Bright rolling hill crest — mid-frame */
+      radial-gradient(ellipse 100% 30% at 50% 48%, rgba(140,185,75,0.65) 0%, rgba(100,148,50,0.35) 50%, transparent 78%),
+      /* Soft meadow light, center-left */
+      radial-gradient(ellipse 35% 38% at 32% 42%, rgba(155,195,90,0.40) 0%, transparent 65%),
+      /* Mid-ground tree mass, right */
+      radial-gradient(ellipse 42% 55% at 78% 65%, rgba(22,52,14,0.85) 0%, rgba(38,72,22,0.45) 50%, transparent 75%),
+      /* Dark canopy, top-left frame */
+      radial-gradient(ellipse 50% 45% at 10% 5%, rgba(10,24,5,0.88) 0%, transparent 55%),
+      /* Deep shadow, bottom */
+      radial-gradient(ellipse 100% 40% at 50% 95%, rgba(8,18,4,0.75) 0%, transparent 70%),
+      /* Base landscape gradient */
+      linear-gradient(168deg, #0c1e04 0%, #1a3008 15%, #2c5212 32%, #3e7218 50%, #4a7c1c 65%, #365a10 80%, #142408 100%);
+    filter: blur(60px) saturate(85%);
+  }
+
+  /* Tonal treatment: warm upper half + dark vignette bottom */
+  #login-screen::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background:
+      /* Subtle warmth top half */
+      linear-gradient(180deg, rgba(200,180,120,0.08) 0%, transparent 50%),
+      /* Dark vignette bottom */
+      linear-gradient(0deg, rgba(0,0,0,0.32) 0%, transparent 45%),
+      /* Corner vignette */
+      radial-gradient(ellipse 80% 80% at 50% 50%, transparent 40%, rgba(0,0,0,0.22) 100%);
+    pointer-events: none;
+  }
+
+  /* Animated orbs removed */
+  .glass-orb { display: none; }
+
+  /* ═══════════════════════════════════════════════
+     LEVEL 1 — Primary Glass Container
+     ═══════════════════════════════════════════════ */
+  .login-card {
+    background: rgba(255, 255, 255, var(--glass-opacity));
+    backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(120%);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--glass-radius);
+    padding: 48px 40px 32px;
+    box-shadow: var(--glass-shadow);
+    text-align: center;
+    width: 400px;
+    position: relative;
+    z-index: 1;
+    overflow: hidden;
+  }
+
+  /* Internal lighting gradient — top-left ambient source */
+  .login-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: var(--glass-gradient);
+    border-radius: var(--glass-radius);
+    pointer-events: none;
+  }
+
+  /* Top-edge highlight (specular from ambient light) */
+  .login-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 8%; right: 8%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.35) 30%, rgba(255,255,255,0.35) 70%, transparent);
+    pointer-events: none;
+  }
+
+  .login-icon { font-size: 2rem; margin-bottom: 16px; }
+
+  .login-card h1 {
+    font-size: 1.4rem;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+
+  .login-card p {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    margin-bottom: 32px;
+    line-height: 1.6;
+    font-weight: 400;
+  }
+
+  #error-msg {
+    display: none;
+    background: rgba(180, 30, 20, 0.14);
+    backdrop-filter: blur(12px);
+    color: rgba(255,180,170,0.9);
+    border: 1px solid rgba(255, 200, 190, 0.15);
+    border-radius: 12px;
+    padding: 12px 16px;
+    font-size: 0.82rem;
+    margin-bottom: 16px;
+    text-align: left;
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEVEL 2 — Radial Time Slider (Raised Surface)
+     ═══════════════════════════════════════════════ */
+  .time-slider-section {
+    margin: 0 0 32px;
+    padding: 0;
+    background: none;
+    border: none;
+    border-radius: 0;
+  }
+
+  .time-slider-label {
+    font-size: 0.7rem;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-secondary);
+    margin-bottom: 16px;
+  }
+
+  .time-slider-wrap {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  #time-slider {
+    cursor: pointer;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+    overflow: visible;
+  }
+
+  /* ── Level 3: Slider Handle — Glass Bubble ──── */
+  #slider-handle {
+    transition: filter var(--duration-hover) var(--ease-out),
+                transform var(--duration-hover) var(--ease-out);
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.35));
+    cursor: grab;
+  }
+  #slider-handle:hover {
+    filter: drop-shadow(0 0 12px rgba(255,255,255,0.35))
+            drop-shadow(0 2px 8px rgba(0,0,0,0.30));
+    transform: scale(1.02);
+  }
+  #slider-handle.dragging {
+    cursor: grabbing;
+    filter: drop-shadow(0 0 16px rgba(255,255,255,0.45))
+            drop-shadow(0 2px 10px rgba(0,0,0,0.30));
+    transform: scale(0.98);
+  }
+
+  /* ═══════════════════════════════════════════════
+     LEVEL 2 — Sign-In Button (Raised Interactive)
+     ═══════════════════════════════════════════════ */
+  .btn-primary {
+    background: rgba(255,255,255,0.14);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    color: var(--text-primary);
+    border: 1px solid var(--glass-border);
+    padding: 14px 28px;
+    border-radius: 16px;
+    font-size: 0.92rem;
+    font-weight: 500;
+    cursor: pointer;
+    width: 100%;
+    box-shadow:
+      0 8px 32px rgba(0,0,0,0.18),
+      var(--glass-highlight);
+    transition: background var(--duration-hover) var(--ease-out),
+                box-shadow var(--duration-hover) var(--ease-out),
+                transform var(--duration-hover) var(--ease-out);
+    letter-spacing: -0.005em;
+    position: relative;
+    overflow: hidden;
+  }
+  /* Internal light gradient on button */
+  .btn-primary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(to bottom, rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+    border-radius: 16px;
+    pointer-events: none;
+  }
+  .btn-primary:hover {
+    background: rgba(255,255,255,0.20);
+    box-shadow:
+      0 12px 40px rgba(0,0,0,0.22),
+      var(--glass-highlight);
+    transform: translateY(-1px);
+  }
+  .btn-primary:active {
+    transform: scale(0.98);
+    box-shadow:
+      0 4px 16px rgba(0,0,0,0.18),
+      var(--glass-highlight);
+  }
+  .btn-primary:disabled { opacity: .4; cursor: default; transform: none; }
+
+  /* ── Loading ────────────────────────────────── */
+  #loading-screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    gap: 18px;
+  }
+
+  .spinner {
+    width: 48px; height: 48px;
+    border: 4px solid var(--border);
+    border-top-color: var(--primary);
+    border-radius: 50%;
+    animation: spin .75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #loading-text     { font-weight: 600; }
+  #loading-progress { font-size: .82rem; color: var(--muted); }
+
+  .progress-bar-wrap {
+    width: 260px; height: 4px;
+    background: var(--border);
+    border-radius: 99px;
+    overflow: hidden;
+  }
+  .progress-bar-inner {
+    height: 100%;
+    background: var(--primary);
+    border-radius: 99px;
+    width: 0%;
+    transition: width .3s;
+  }
+
+  /* ── Dashboard ──────────────────────────────── */
+  #dashboard { display: none; }
+
+  header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky; top: 0; z-index: 20;
+  }
+
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header-left h1 { font-size: 1rem; font-weight: 700; }
+  #account-badge {
+    font-size: .78rem;
+    background: var(--bg);
+    color: var(--muted);
+    padding: 3px 10px;
+    border-radius: 99px;
+    border: 1px solid var(--border);
+  }
+
+  .btn-ghost {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: .82rem;
+    cursor: pointer;
+  }
+  .btn-ghost:hover { background: var(--bg); }
+
+  main {
+    max-width: 1360px;
+    margin: 0 auto;
+    padding: 28px 32px 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  /* ── Section ────────────────────────────────── */
+  .section-label {
+    font-size: .7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .08em;
+    color: var(--muted);
+    margin-bottom: 14px;
+  }
+
+  /* ── Stat cards ─────────────────────────────── */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
+    gap: 14px;
+  }
+
+  .stat-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px 22px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    cursor: pointer;
+    transition: box-shadow .15s, transform .15s;
+  }
+  .stat-card:hover {
+    box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+    transform: translateY(-1px);
+  }
+
+  .stat-label { font-size: .78rem; color: var(--muted); }
+  .stat-value { font-size: 2rem; font-weight: 800; line-height: 1.1; }
+  .stat-sub   { font-size: .73rem; color: var(--muted); margin-top: 2px; }
+
+  .stat-card.c-received .stat-value { color: var(--received); }
+  .stat-card.c-sent     .stat-value { color: var(--sent); }
+
+  /* ── Chart cards ────────────────────────────── */
+  .charts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+  }
+
+  .chart-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 24px 26px;
+    box-shadow: var(--shadow);
+  }
+
+  .chart-card.full { grid-column: 1 / -1; }
+
+  .chart-title    { font-size: .93rem; font-weight: 700; margin-bottom: 2px; }
+  .chart-subtitle { font-size: .78rem; color: var(--muted); margin-bottom: 20px; }
+
+  .chart-wrap { position: relative; cursor: pointer; }
+
+  .legend {
+    display: flex; gap: 18px;
+    margin-top: 14px;
+    font-size: .78rem; color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot  { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+
+  /* ── Drill-down modal ──────────────────── */
+  #drill-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 100;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 40px 20px;
+    overflow-y: auto;
+  }
+  #drill-overlay.open { display: flex; }
+
+  .drill-panel {
+    background: var(--card);
+    border-radius: 16px;
+    width: 100%;
+    max-width: 960px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.18);
+    overflow: hidden;
+    animation: slideUp .25s ease-out;
+  }
+  @keyframes slideUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .drill-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .drill-header h2 { font-size: 1rem; font-weight: 700; }
+  .drill-count {
+    font-size: .8rem;
+    color: var(--muted);
+    background: var(--bg);
+    padding: 3px 10px;
+    border-radius: 99px;
+    margin-left: 10px;
+  }
+  .drill-close {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    width: 32px; height: 32px;
+    font-size: 1.1rem;
+    cursor: pointer;
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .drill-close:hover { background: var(--bg); }
+
+  .drill-body {
+    max-height: 65vh;
+    overflow-y: auto;
+  }
+
+  .drill-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: .82rem;
+  }
+  .drill-table thead { position: sticky; top: 0; background: var(--card); z-index: 2; }
+  .drill-table th {
+    text-align: left;
+    padding: 10px 14px;
+    font-weight: 600;
+    font-size: .72rem;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    color: var(--muted);
+    border-bottom: 2px solid var(--border);
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .drill-table th:hover { color: var(--text-d); }
+  .drill-table th .sort-arrow { margin-left: 4px; font-size: .65rem; }
+  .drill-table td {
+    padding: 9px 14px;
+    border-bottom: 1px solid #f3f4f6;
+    max-width: 300px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .drill-table tbody tr:hover { background: #f8f9ff; }
+  .drill-table .att-yes { color: var(--primary); font-weight: 600; }
+  .drill-table .att-no  { color: #d1d5db; }
+
+  @media (max-width: 800px) {
+    main { padding: 16px; }
+    .charts-grid { grid-template-columns: 1fr; }
+    .chart-card.full { grid-column: 1; }
+    .drill-panel { max-width: 100%; }
+    .login-card { width: 92vw; padding: 36px 24px 28px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ── LOGIN ───────────────────────────────────── -->
+<div id="login-screen">
+  <div class="glass-orb glass-orb-1"></div>
+  <div class="glass-orb glass-orb-2"></div>
+  <div class="glass-orb glass-orb-3"></div>
+
+  <div class="login-card">
+    <div class="login-icon">📧</div>
+    <h1>Email Dashboard</h1>
+    <p>Sign in with your Microsoft work account to analyse your email patterns.</p>
+
+    <!-- ── Radial time slider ── -->
+    <div class="time-slider-section">
+      <div class="time-slider-label">Time range</div>
+      <div class="time-slider-wrap">
+        <svg id="time-slider" viewBox="0 0 240 240" width="204" height="204">
+          <defs>
+            <!-- Arc gradient: semi-transparent white, slightly more opaque than track -->
+            <linearGradient id="arcGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%"   stop-color="rgba(255,255,255,0.60)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0.35)"/>
+            </linearGradient>
+            <!-- Handle: glass bubble with top-left specular highlight -->
+            <radialGradient id="handleGrad" cx="35%" cy="30%" r="65%">
+              <stop offset="0%"   stop-color="rgba(255,255,255,0.95)"/>
+              <stop offset="60%"  stop-color="rgba(255,255,255,0.55)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0.30)"/>
+            </radialGradient>
+            <!-- Handle border (subtle glass edge) -->
+            <radialGradient id="handleBorderGrad" cx="35%" cy="30%" r="65%">
+              <stop offset="0%"   stop-color="rgba(255,255,255,0.60)"/>
+              <stop offset="100%" stop-color="rgba(255,255,255,0.20)"/>
+            </radialGradient>
+            <!-- Soft glow on active arc -->
+            <filter id="arcGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feGaussianBlur in="SourceGraphic" stdDeviation="2.5" result="blur"/>
+              <feMerge>
+                <feMergeNode in="blur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+
+          <!-- Track ring — semi-transparent white -->
+          <circle cx="120" cy="120" r="88"
+            fill="none"
+            stroke="rgba(255,255,255,0.08)"
+            stroke-width="12"/>
+
+          <!-- Subtle year markers — no heavy ticks, just soft labels -->
+          <text x="222" y="124" fill="rgba(255,255,255,0.25)" font-size="9" font-weight="400"
+            text-anchor="middle" font-family="Inter,-apple-system,BlinkMacSystemFont,sans-serif">1y</text>
+          <text x="120" y="224" fill="rgba(255,255,255,0.25)" font-size="9" font-weight="400"
+            text-anchor="middle" font-family="Inter,-apple-system,BlinkMacSystemFont,sans-serif">2y</text>
+          <text x="18"  y="124" fill="rgba(255,255,255,0.25)" font-size="9" font-weight="400"
+            text-anchor="middle" font-family="Inter,-apple-system,BlinkMacSystemFont,sans-serif">3y</text>
+          <text x="120" y="17"  fill="rgba(255,255,255,0.25)" font-size="9" font-weight="400"
+            text-anchor="middle" font-family="Inter,-apple-system,BlinkMacSystemFont,sans-serif">4y</text>
+
+          <!-- Active progress arc -->
+          <path id="slider-arc"
+            fill="none"
+            stroke="url(#arcGrad)"
+            stroke-width="12"
+            stroke-linecap="round"
+            filter="url(#arcGlow)"/>
+
+          <!-- Center: large spacious value -->
+          <text id="slider-main" x="120" y="112"
+            text-anchor="middle" dominant-baseline="middle"
+            fill="var(--text-primary)"
+            font-size="30" font-weight="500"
+            font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif"
+            letter-spacing="-0.03em">18mo</text>
+
+          <!-- Center: secondary label -->
+          <text id="slider-sub" x="120" y="138"
+            text-anchor="middle" dominant-baseline="middle"
+            fill="var(--text-secondary)"
+            font-size="10.5" font-weight="400"
+            font-family="Inter, -apple-system, BlinkMacSystemFont, sans-serif">of history</text>
+
+          <!-- Handle: glass bubble — same blur+border rule as container -->
+          <circle id="slider-handle" r="12"
+            fill="url(#handleGrad)"
+            stroke="url(#handleBorderGrad)"
+            stroke-width="1.5"/>
+        </svg>
+      </div>
+    </div>
+
+    <div id="error-msg"></div>
+    <button class="btn-primary" id="login-btn" onclick="login()">Sign in with Microsoft</button>
+  </div>
+</div>
+
+<!-- ── LOADING ──────────────────────────────────── -->
+<div id="loading-screen">
+  <div class="spinner"></div>
+  <div id="loading-text">Connecting…</div>
+  <div class="progress-bar-wrap"><div class="progress-bar-inner" id="progress-bar"></div></div>
+  <div id="loading-progress"></div>
+</div>
+
+<!-- ── DASHBOARD ────────────────────────────────── -->
+<div id="dashboard">
+
+  <header>
+    <div class="header-left">
+      <span style="font-size:1.4rem">📧</span>
+      <h1>Email Dashboard</h1>
+      <span id="account-badge"></span>
+    </div>
+    <button class="btn-ghost" onclick="signOut()">Sign out</button>
+  </header>
+
+  <main>
+    <!-- Stats -->
+    <div>
+      <div class="section-label" id="overview-label">Overview</div>
+      <div class="stats-grid" id="stats-grid"></div>
+    </div>
+
+    <!-- Timeline -->
+    <div class="chart-card full">
+      <div class="chart-title">Email Volume Over Time</div>
+      <div class="chart-subtitle">Weekly totals — sent vs received · click a point to drill in</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="c-timeline"></canvas></div>
+      <div class="legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--received)"></div>Received</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--sent)"></div>Sent</div>
+      </div>
+    </div>
+
+    <!-- Day of week + Hour of day -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Day of Week</div>
+        <div class="chart-subtitle">Activity by weekday · click to drill in</div>
+        <div class="chart-wrap" style="height:210px"><canvas id="c-dow"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Hour of Day</div>
+        <div class="chart-subtitle">When your inbox is most active · click to drill in</div>
+        <div class="chart-wrap" style="height:210px"><canvas id="c-hod"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Top senders + recipients -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Top Senders</div>
+        <div class="chart-subtitle">Who emails you most · click a bar to see emails</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="c-senders"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Top Recipients</div>
+        <div class="chart-subtitle">Who you email most · click a bar to see emails</div>
+        <div class="chart-wrap" style="height:280px"><canvas id="c-recipients"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Response time + Read rate -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Response Times</div>
+        <div class="chart-subtitle">How quickly you reply · click a bucket to see emails</div>
+        <div class="chart-wrap" style="height:210px"><canvas id="c-response"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Monthly Read Rate</div>
+        <div class="chart-subtitle">% of received emails you opened · click to drill in</div>
+        <div class="chart-wrap" style="height:210px"><canvas id="c-readrate"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Attachment rate -->
+    <div class="chart-card full">
+      <div class="chart-title">Emails with Attachments</div>
+      <div class="chart-subtitle">Monthly count of messages with file attachments · click to drill in</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c-attachments"></canvas></div>
+    </div>
+  </main>
+</div><!-- /dashboard -->
+
+<!-- ── DRILL-DOWN MODAL ─────────────────────────── -->
+<div id="drill-overlay" onclick="if(event.target===this)closeDrill()">
+  <div class="drill-panel">
+    <div class="drill-header">
+      <div style="display:flex;align-items:center">
+        <h2 id="drill-title">Emails</h2>
+        <span class="drill-count" id="drill-count"></span>
+      </div>
+      <button class="drill-close" onclick="closeDrill()">✕</button>
+    </div>
+    <div class="drill-body">
+      <table class="drill-table">
+        <thead>
+          <tr>
+            <th onclick="sortDrill('date')">Date <span class="sort-arrow" id="sort-date">▼</span></th>
+            <th onclick="sortDrill('from')">From <span class="sort-arrow" id="sort-from"></span></th>
+            <th onclick="sortDrill('to')">To <span class="sort-arrow" id="sort-to"></span></th>
+            <th onclick="sortDrill('subject')">Subject <span class="sort-arrow" id="sort-subject"></span></th>
+            <th onclick="sortDrill('attachment')">Attachment <span class="sort-arrow" id="sort-attachment"></span></th>
+          </tr>
+        </thead>
+        <tbody id="drill-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════
+const CLIENT_ID    = "52975658-2cda-4237-a140-6f4f60b5f67c";
+const TENANT_ID    = "d0a04723-fdc3-4b9f-b4ca-ed07f918688a";
+const REDIRECT_URI = window.location.origin;
+const GRAPH        = "https://graph.microsoft.com/v1.0";
+
+// Driven by the radial slider (default 18)
+let MONTHS_BACK = 18;
+
+// ════════════════════════════════════════════════
+// GLOBAL DATA STORE (populated after fetch)
+// ════════════════════════════════════════════════
+let ALL_RECEIVED = [];
+let ALL_SENT     = [];
+
+// ════════════════════════════════════════════════
+// MSAL SETUP
+// ════════════════════════════════════════════════
+const msalInstance = new msal.PublicClientApplication({
+  auth: {
+    clientId:    CLIENT_ID,
+    authority:   `https://login.microsoftonline.com/${TENANT_ID}`,
+    redirectUri: REDIRECT_URI
+  },
+  cache: { cacheLocation: "sessionStorage" }
+});
+
+const SCOPES = ["Mail.Read"];
+
+// ════════════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════════════
+function showScreen(id) {
+  ["login-screen", "loading-screen", "dashboard"].forEach(s => {
+    const el = document.getElementById(s);
+    if (s === id) {
+      el.style.display = s === "dashboard" ? "block" : "flex";
+    } else {
+      el.style.display = "none";
+    }
+  });
+}
+
+function setLoading(text, progress = "", pct = null) {
+  document.getElementById("loading-text").textContent = text;
+  document.getElementById("loading-progress").textContent = progress;
+  if (pct !== null) {
+    document.getElementById("progress-bar").style.width = pct + "%";
+  }
+}
+
+function showError(msg) {
+  const el = document.getElementById("error-msg");
+  el.textContent = msg;
+  el.style.display = "block";
+  document.getElementById("login-btn").disabled = false;
+}
+
+// ════════════════════════════════════════════════
+// AUTH
+// ════════════════════════════════════════════════
+async function init() {
+  await msalInstance.initialize();
+  const accounts = msalInstance.getAllAccounts();
+  if (accounts.length > 0) {
+    msalInstance.setActiveAccount(accounts[0]);
+    showScreen("loading-screen");
+    setLoading("Loading your data…", "", 5);
+    await fetchAndRender();
+  } else {
+    showScreen("login-screen");
+  }
+}
+
+async function login() {
+  document.getElementById("login-btn").disabled = true;
+  document.getElementById("error-msg").style.display = "none";
+  try {
+    const result = await msalInstance.loginPopup({ scopes: SCOPES });
+    msalInstance.setActiveAccount(result.account);
+    showScreen("loading-screen");
+    setLoading("Connected! Fetching your inbox…", "", 5);
+    await fetchAndRender();
+  } catch (err) {
+    showError("Sign-in failed: " + (err.message || err));
+  }
+}
+
+async function signOut() {
+  await msalInstance.logoutPopup();
+  showScreen("login-screen");
+}
+
+async function getToken() {
+  const account = msalInstance.getActiveAccount();
+  const res = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+  return res.accessToken;
+}
+
+// ════════════════════════════════════════════════
+// GRAPH API
+// ════════════════════════════════════════════════
+async function fetchAllPages(firstUrl, onCount) {
+  const all = [];
+  let url = firstUrl;
+  while (url) {
+    const token = await getToken();
+    const resp  = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+    if (!resp.ok) {
+      const body = await resp.json().catch(() => ({}));
+      throw new Error(body.error?.message || `HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    all.push(...(data.value || []));
+    if (onCount) onCount(all.length);
+    url = data["@odata.nextLink"] || null;
+  }
+  return all;
+}
+
+async function fetchAndRender() {
+  const since = new Date();
+  if (MONTHS_BACK === 0) {
+    since.setHours(0, 0, 0, 0); // today from midnight
+  } else {
+    since.setMonth(since.getMonth() - MONTHS_BACK);
+  }
+  const sinceISO = since.toISOString();
+
+  const recFields  = "id,receivedDateTime,from,toRecipients,subject,conversationId,isRead,hasAttachments";
+  const sentFields = "id,sentDateTime,from,toRecipients,subject,conversationId,hasAttachments";
+
+  const recUrl  = `${GRAPH}/me/mailFolders/inbox/messages?$select=${recFields}&$filter=${encodeURIComponent("receivedDateTime ge " + sinceISO)}&$top=100`;
+  const sentUrl = `${GRAPH}/me/mailFolders/sentitems/messages?$select=${sentFields}&$filter=${encodeURIComponent("sentDateTime ge " + sinceISO)}&$top=100`;
+
+  try {
+    setLoading("Fetching received emails…", "starting…", 10);
+    ALL_RECEIVED = await fetchAllPages(recUrl, n => {
+      setLoading("Fetching received emails…", `${n} messages`, Math.min(10 + n / 25, 45));
+    });
+
+    setLoading("Fetching sent emails…", "starting…", 50);
+    ALL_SENT = await fetchAllPages(sentUrl, n => {
+      setLoading("Fetching sent emails…", `${n} messages`, Math.min(50 + n / 25, 85));
+    });
+
+    setLoading("Building dashboard…", "", 95);
+    await new Promise(r => setTimeout(r, 300));
+
+    const account = msalInstance.getActiveAccount();
+    document.getElementById("account-badge").textContent = account?.username || "";
+
+    renderDashboard(ALL_RECEIVED, ALL_SENT);
+    showScreen("dashboard");
+
+  } catch (err) {
+    showScreen("login-screen");
+    showError("Failed to load data: " + err.message);
+  }
+}
+
+// ════════════════════════════════════════════════
+// DATA HELPERS
+// ════════════════════════════════════════════════
+function weekKey(dateStr) {
+  const d = new Date(dateStr);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+  const m = new Date(d);
+  m.setDate(diff);
+  m.setHours(0, 0, 0, 0);
+  return m.toISOString().slice(0, 10);
+}
+
+function monthKey(dateStr) {
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+function groupByWeek(msgs, field) {
+  const map = {};
+  msgs.forEach(m => { const k = weekKey(m[field]); map[k] = (map[k] || 0) + 1; });
+  return map;
+}
+
+function groupByDow(msgs, field) {
+  const c = new Array(7).fill(0);
+  msgs.forEach(m => c[new Date(m[field]).getDay()]++);
+  return c;
+}
+
+function groupByHour(msgs, field) {
+  const c = new Array(24).fill(0);
+  msgs.forEach(m => c[new Date(m[field]).getHours()]++);
+  return c;
+}
+
+function topN(msgs, keysFn, n = 10) {
+  const map = {};
+  msgs.forEach(m => {
+    keysFn(m).forEach(k => { if (k) map[k] = (map[k] || 0) + 1; });
+  });
+  return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n);
+}
+
+function calcResponseTimes(received, sent) {
+  const conv = {};
+  received.forEach(m => {
+    const id = m.conversationId;
+    if (!conv[id]) conv[id] = [];
+    conv[id].push(new Date(m.receivedDateTime).getTime());
+  });
+
+  const buckets = { "<1h": 0, "1–4h": 0, "4–24h": 0, "1–3d": 0, ">3d": 0 };
+
+  sent.forEach(m => {
+    const prev = conv[m.conversationId];
+    if (!prev) return;
+    const sentT = new Date(m.sentDateTime).getTime();
+    const lastRec = prev.filter(t => t < sentT).sort((a, b) => b - a)[0];
+    if (!lastRec) return;
+    const hrs = (sentT - lastRec) / 3_600_000;
+    if (hrs > 7 * 24) return;
+    if      (hrs < 1)  buckets["<1h"]++;
+    else if (hrs < 4)  buckets["1–4h"]++;
+    else if (hrs < 24) buckets["4–24h"]++;
+    else if (hrs < 72) buckets["1–3d"]++;
+    else               buckets[">3d"]++;
+  });
+
+  return buckets;
+}
+
+function calcMonthlyReadRate(received) {
+  const map = {};
+  received.forEach(m => {
+    const k = monthKey(m.receivedDateTime);
+    if (!map[k]) map[k] = { total: 0, read: 0 };
+    map[k].total++;
+    if (m.isRead) map[k].read++;
+  });
+  return Object.entries(map)
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([k, v]) => ({
+      month: k,
+      label: new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" }),
+      rate:  v.total > 0 ? Math.round(v.read / v.total * 100) : 0
+    }));
+}
+
+function calcMonthlyAttachments(received, sent) {
+  const map = {};
+  const add = (dateStr) => {
+    const k = monthKey(dateStr);
+    map[k] = (map[k] || 0) + 1;
+  };
+  received.filter(m => m.hasAttachments).forEach(m => add(m.receivedDateTime));
+  sent.filter(m => m.hasAttachments).forEach(m => add(m.sentDateTime));
+  const keys = Object.keys(map).sort();
+  return {
+    months: keys,
+    labels: keys.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" })),
+    data:   keys.map(k => map[k])
+  };
+}
+
+// ════════════════════════════════════════════════
+// NORMALIZE: turn any message into a table row
+// ════════════════════════════════════════════════
+function normalizeMsg(m, type) {
+  const dateField = type === "sent" ? "sentDateTime" : "receivedDateTime";
+  const dateVal = m[dateField] || m.sentDateTime || m.receivedDateTime;
+  return {
+    date:       dateVal,
+    from:       m.from?.emailAddress?.address || "(you)",
+    to:         (m.toRecipients || []).map(r => r.emailAddress?.address).join(", ") || "—",
+    subject:    m.subject || "(no subject)",
+    attachment: m.hasAttachments ? "Yes" : "No",
+    _type:      type
+  };
+}
+
+// ════════════════════════════════════════════════
+// DRILL-DOWN MODAL
+// ════════════════════════════════════════════════
+let drillRows = [];
+let drillSortCol = "date";
+let drillSortAsc = false;
+
+function openDrill(title, emails) {
+  drillRows = emails;
+  drillSortCol = "date";
+  drillSortAsc = false;
+  document.getElementById("drill-title").textContent = title;
+  document.getElementById("drill-count").textContent = emails.length + " emails";
+  renderDrillTable();
+  document.getElementById("drill-overlay").classList.add("open");
+  document.body.style.overflow = "hidden";
+}
+
+function closeDrill() {
+  document.getElementById("drill-overlay").classList.remove("open");
+  document.body.style.overflow = "";
+}
+
+function sortDrill(col) {
+  if (drillSortCol === col) {
+    drillSortAsc = !drillSortAsc;
+  } else {
+    drillSortCol = col;
+    drillSortAsc = col === "date" ? false : true;
+  }
+  renderDrillTable();
+}
+
+function renderDrillTable() {
+  ["date","from","to","subject","attachment"].forEach(c => {
+    const el = document.getElementById("sort-" + c);
+    if (c === drillSortCol) {
+      el.textContent = drillSortAsc ? "▲" : "▼";
+    } else {
+      el.textContent = "";
+    }
+  });
+
+  const sorted = [...drillRows].sort((a, b) => {
+    let va = a[drillSortCol], vb = b[drillSortCol];
+    if (drillSortCol === "date") {
+      va = new Date(va).getTime();
+      vb = new Date(vb).getTime();
+    } else {
+      va = (va || "").toLowerCase();
+      vb = (vb || "").toLowerCase();
+    }
+    if (va < vb) return drillSortAsc ? -1 : 1;
+    if (va > vb) return drillSortAsc ? 1 : -1;
+    return 0;
+  });
+
+  const tbody = document.getElementById("drill-tbody");
+  tbody.innerHTML = sorted.map(r => {
+    const d = new Date(r.date);
+    const dateStr = d.toLocaleDateString("en", { month: "short", day: "numeric", year: "numeric" }) +
+                    " " + d.toLocaleTimeString("en", { hour: "numeric", minute: "2-digit" });
+    const attCls = r.attachment === "Yes" ? "att-yes" : "att-no";
+    return `<tr>
+      <td style="white-space:nowrap">${dateStr}</td>
+      <td title="${r.from}">${r.from}</td>
+      <td title="${r.to}">${r.to}</td>
+      <td title="${r.subject}">${r.subject}</td>
+      <td class="${attCls}">${r.attachment}</td>
+    </tr>`;
+  }).join("");
+}
+
+document.addEventListener("keydown", e => { if (e.key === "Escape") closeDrill(); });
+
+// ════════════════════════════════════════════════
+// DRILL-DOWN FILTER HELPERS
+// ════════════════════════════════════════════════
+function drillReceived(filterFn, title) {
+  const emails = ALL_RECEIVED.filter(filterFn).map(m => normalizeMsg(m, "received"));
+  openDrill(title, emails);
+}
+
+function drillSent(filterFn, title) {
+  const emails = ALL_SENT.filter(filterFn).map(m => normalizeMsg(m, "sent"));
+  openDrill(title, emails);
+}
+
+function drillBoth(recFilterFn, sentFilterFn, title) {
+  const emails = [
+    ...ALL_RECEIVED.filter(recFilterFn).map(m => normalizeMsg(m, "received")),
+    ...ALL_SENT.filter(sentFilterFn).map(m => normalizeMsg(m, "sent"))
+  ];
+  openDrill(title, emails);
+}
+
+// ════════════════════════════════════════════════
+// CHART DEFAULTS
+// ════════════════════════════════════════════════
+const BASE_OPTS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: { legend: { display: false } },
+  animation: { duration: 600 }
+};
+
+const GRID_COLOR  = "#f0f0f5";
+const REC_COLOR   = "#5b6af9";
+const SENT_COLOR  = "#f97066";
+
+// ════════════════════════════════════════════════
+// RENDER DASHBOARD
+// ════════════════════════════════════════════════
+function renderDashboard(received, sent) {
+  // Update overview label to reflect chosen range
+  const lbl = document.getElementById("overview-label");
+  if (lbl) {
+    const m = MONTHS_BACK;
+    if (m === 0)       lbl.textContent = "Today's overview";
+    else if (m < 12)   lbl.textContent = `${m}-month overview`;
+    else if (m % 12 === 0) lbl.textContent = `${m / 12}-year overview`;
+    else               lbl.textContent = `${m}-month overview`;
+  }
+  renderStats(received, sent);
+  renderTimeline(received, sent);
+  renderDow(received, sent);
+  renderHod(received, sent);
+  renderTopSenders(received);
+  renderTopRecipients(sent);
+  renderResponseTimes(received, sent);
+  renderReadRate(received);
+  renderAttachments(received, sent);
+}
+
+// ── Stat cards (clickable) ──────────────────────
+function renderStats(received, sent) {
+  const days = MONTHS_BACK > 0 ? MONTHS_BACK * 30.44 : 1;
+
+  const dowCounts  = groupByDow(received, "receivedDateTime");
+  const dowLabels  = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const busyDowIdx = dowCounts.indexOf(Math.max(...dowCounts));
+  const busyDow    = dowLabels[busyDowIdx];
+
+  const hourCounts = groupByHour(received, "receivedDateTime");
+  const busyHourN  = hourCounts.indexOf(Math.max(...hourCounts));
+  const busyHour   = busyHourN === 0 ? "12am"
+    : busyHourN < 12  ? `${busyHourN}am`
+    : busyHourN === 12 ? "12pm"
+    : `${busyHourN - 12}pm`;
+
+  const recPerDay  = (received.length / days).toFixed(1);
+  const sentPerDay = (sent.length / days).toFixed(1);
+
+  const topSender  = topN(received, m => [m.from?.emailAddress?.address || ""], 1);
+  const topSenderAddr = topSender[0]?.[0] || "";
+  const topSenderDisplay = topSender[0]
+    ? topSender[0][0].split("@")[0].replace(/[._]/g, " ")
+    : "—";
+
+  const attachPct  = received.length > 0
+    ? Math.round(received.filter(m => m.hasAttachments).length / received.length * 100)
+    : 0;
+
+  const cards = [
+    { label: "Received",         value: received.length.toLocaleString(), sub: `${recPerDay}/day avg`,  cls: "c-received",
+      onclick: `drillReceived(() => true, 'All Received Emails')` },
+    { label: "Sent",             value: sent.length.toLocaleString(),     sub: `${sentPerDay}/day avg`, cls: "c-sent",
+      onclick: `drillSent(() => true, 'All Sent Emails')` },
+    { label: "Busiest Day",      value: busyDow,    sub: "for incoming mail", cls: "",
+      onclick: `drillReceived(m => new Date(m.receivedDateTime).getDay() === ${busyDowIdx}, 'Received on ${busyDow}s')` },
+    { label: "Busiest Hour",     value: busyHour,   sub: "most mail arrives", cls: "",
+      onclick: `drillReceived(m => new Date(m.receivedDateTime).getHours() === ${busyHourN}, 'Received at ${busyHour}')` },
+    { label: "Top Sender",       value: topSenderDisplay, sub: topSenderAddr, cls: "",
+      onclick: `drillReceived(m => m.from?.emailAddress?.address === '${topSenderAddr}', 'From ${topSenderAddr}')` },
+    { label: "With Attachments", value: `${attachPct}%`, sub: "of received have files", cls: "",
+      onclick: `drillReceived(m => m.hasAttachments, 'Received with Attachments')` },
+  ];
+
+  document.getElementById("stats-grid").innerHTML = cards.map(c => `
+    <div class="stat-card ${c.cls}" onclick="${c.onclick}">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value">${c.value}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>
+  `).join("");
+}
+
+// ── Timeline (clickable) ────────────────────────
+function renderTimeline(received, sent) {
+  const recW  = groupByWeek(received, "receivedDateTime");
+  const sentW = groupByWeek(sent, "sentDateTime");
+  const keys  = [...new Set([...Object.keys(recW), ...Object.keys(sentW)])].sort();
+  const labels = keys.map(k => {
+    const d = new Date(k);
+    return d.toLocaleDateString("en", { month: "short", day: "numeric" });
+  });
+
+  new Chart(document.getElementById("c-timeline"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {
+          label: "Received",
+          data: keys.map(k => recW[k] || 0),
+          borderColor: REC_COLOR,
+          backgroundColor: REC_COLOR + "18",
+          fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2
+        },
+        {
+          label: "Sent",
+          data: keys.map(k => sentW[k] || 0),
+          borderColor: SENT_COLOR,
+          backgroundColor: SENT_COLOR + "18",
+          fill: true, tension: 0.4, pointRadius: 0, borderWidth: 2
+        }
+      ]
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const wk = keys[idx];
+        const label = labels[idx];
+        drillBoth(
+          m => weekKey(m.receivedDateTime) === wk,
+          m => weekKey(m.sentDateTime) === wk,
+          `Week of ${label}`
+        );
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { mode: "index", intersect: false }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 14, font: { size: 11 } } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── Day of week (clickable) ─────────────────────
+function renderDow(received, sent) {
+  const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  new Chart(document.getElementById("c-dow"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Received", data: groupByDow(received, "receivedDateTime"), backgroundColor: REC_COLOR + "cc",  borderRadius: 5 },
+        { label: "Sent",     data: groupByDow(sent, "sentDateTime"),          backgroundColor: SENT_COLOR + "cc", borderRadius: 5 }
+      ]
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const dsIdx = elems[0].datasetIndex;
+        const day = labels[idx];
+        if (dsIdx === 0) {
+          drillReceived(m => new Date(m.receivedDateTime).getDay() === idx, `Received on ${day}s`);
+        } else {
+          drillSent(m => new Date(m.sentDateTime).getDay() === idx, `Sent on ${day}s`);
+        }
+      },
+      plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── Hour of day (clickable) ─────────────────────
+function renderHod(received, sent) {
+  const labels = Array.from({ length: 24 }, (_, i) =>
+    i === 0 ? "12am" : i < 12 ? `${i}am` : i === 12 ? "12pm" : `${i-12}pm`
+  );
+  new Chart(document.getElementById("c-hod"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "Received", data: groupByHour(received, "receivedDateTime"), backgroundColor: REC_COLOR + "cc",  borderRadius: 3 },
+        { label: "Sent",     data: groupByHour(sent, "sentDateTime"),          backgroundColor: SENT_COLOR + "cc", borderRadius: 3 }
+      ]
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const dsIdx = elems[0].datasetIndex;
+        const hr = labels[idx];
+        if (dsIdx === 0) {
+          drillReceived(m => new Date(m.receivedDateTime).getHours() === idx, `Received at ${hr}`);
+        } else {
+          drillSent(m => new Date(m.sentDateTime).getHours() === idx, `Sent at ${hr}`);
+        }
+      },
+      plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { maxTicksLimit: 8, font: { size: 11 } } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── Top senders (clickable) ─────────────────────
+function renderTopSenders(received) {
+  const top = topN(received, m => [m.from?.emailAddress?.address || ""], 10);
+  new Chart(document.getElementById("c-senders"), {
+    type: "bar",
+    data: {
+      labels: top.map(([k]) => k.split("@")[0]),
+      datasets: [{ data: top.map(([,v]) => v), backgroundColor: REC_COLOR + "cc", borderRadius: 4 }]
+    },
+    options: {
+      ...BASE_OPTS,
+      indexAxis: "y",
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const addr = top[idx][0];
+        drillReceived(m => m.from?.emailAddress?.address === addr, `From ${addr}`);
+      },
+      scales: {
+        x: { grid: { color: GRID_COLOR }, beginAtZero: true },
+        y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── Top recipients (clickable) ──────────────────
+function renderTopRecipients(sent) {
+  const top = topN(sent, m => (m.toRecipients || []).map(r => r.emailAddress?.address || ""), 10);
+  new Chart(document.getElementById("c-recipients"), {
+    type: "bar",
+    data: {
+      labels: top.map(([k]) => k.split("@")[0]),
+      datasets: [{ data: top.map(([,v]) => v), backgroundColor: SENT_COLOR + "cc", borderRadius: 4 }]
+    },
+    options: {
+      ...BASE_OPTS,
+      indexAxis: "y",
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const addr = top[idx][0];
+        drillSent(m => (m.toRecipients || []).some(r => r.emailAddress?.address === addr), `To ${addr}`);
+      },
+      scales: {
+        x: { grid: { color: GRID_COLOR }, beginAtZero: true },
+        y: { grid: { display: false }, ticks: { font: { size: 11 } } }
+      }
+    }
+  });
+}
+
+// ── Response times (clickable) ──────────────────
+function renderResponseTimes(received, sent) {
+  const buckets = calcResponseTimes(received, sent);
+  const colors  = ["#22c55e","#84cc16","#f59e0b","#f97066","#ef4444"];
+  const bucketKeys = Object.keys(buckets);
+  const thresholds = [[0,1],[1,4],[4,24],[24,72],[72,7*24]];
+
+  const conv = {};
+  received.forEach(m => {
+    const id = m.conversationId;
+    if (!conv[id]) conv[id] = [];
+    conv[id].push(new Date(m.receivedDateTime).getTime());
+  });
+
+  new Chart(document.getElementById("c-response"), {
+    type: "bar",
+    data: {
+      labels: bucketKeys,
+      datasets: [{
+        data: Object.values(buckets),
+        backgroundColor: colors,
+        borderRadius: 5
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const [lo, hi] = thresholds[idx];
+        const label = bucketKeys[idx];
+        const matchingSent = ALL_SENT.filter(m => {
+          const prev = conv[m.conversationId];
+          if (!prev) return false;
+          const sentT = new Date(m.sentDateTime).getTime();
+          const lastRec = prev.filter(t => t < sentT).sort((a, b) => b - a)[0];
+          if (!lastRec) return false;
+          const hrs = (sentT - lastRec) / 3_600_000;
+          if (hrs > 7 * 24) return false;
+          return hrs >= lo && hrs < hi;
+        });
+        openDrill(`Replies in ${label}`, matchingSent.map(m => normalizeMsg(m, "sent")));
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ── Read rate (clickable) ────────────────────────
+function renderReadRate(received) {
+  const monthly = calcMonthlyReadRate(received);
+  new Chart(document.getElementById("c-readrate"), {
+    type: "bar",
+    data: {
+      labels: monthly.map(m => m.label),
+      datasets: [{
+        label: "Read %",
+        data: monthly.map(m => m.rate),
+        backgroundColor: monthly.map(m =>
+          m.rate >= 80 ? "#22c55e99" : m.rate >= 50 ? "#f59e0b99" : "#f9706699"
+        ),
+        borderRadius: 4
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const mk = monthly[idx].month;
+        const label = monthly[idx].label;
+        drillReceived(m => monthKey(m.receivedDateTime) === mk, `Received in ${label}`);
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 11 } } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, max: 100, ticks: { callback: v => v + "%" } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `${ctx.raw}% opened` } }
+      }
+    }
+  });
+}
+
+// ── Attachments (clickable) ──────────────────────
+function renderAttachments(received, sent) {
+  const { months, labels, data } = calcMonthlyAttachments(received, sent);
+  new Chart(document.getElementById("c-attachments"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{
+        label: "Emails with attachments",
+        data,
+        backgroundColor: "#a78bfa99",
+        borderRadius: 5
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const idx = elems[0].index;
+        const mk = months[idx];
+        const label = labels[idx];
+        drillBoth(
+          m => m.hasAttachments && monthKey(m.receivedDateTime) === mk,
+          m => m.hasAttachments && monthKey(m.sentDateTime) === mk,
+          `Emails with attachments in ${label}`
+        );
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+// RADIAL TIME SLIDER
+// ════════════════════════════════════════════════
+const SL = { cx: 120, cy: 120, r: 88 };
+let sliderDragging = false;
+
+function sliderFormat(m) {
+  if (m === 0) return "Today";
+  if (m < 12)  return `${m}mo`;
+  const y  = Math.floor(m / 12);
+  const mo = m % 12;
+  if (mo === 0) return `${y}yr`;
+  return `${y}yr ${mo}mo`;
+}
+
+function sliderArcPath(months) {
+  if (months <= 0) return "";
+  if (months >= 48) {
+    // Full circle: two semicircles (SVG can't do a single-command full circle)
+    return `M ${SL.cx} ${SL.cy - SL.r} A ${SL.r} ${SL.r} 0 0 1 ${SL.cx} ${SL.cy + SL.r} A ${SL.r} ${SL.r} 0 0 1 ${SL.cx} ${SL.cy - SL.r}`;
+  }
+  const startRad = -Math.PI / 2;                          // 12 o'clock
+  const endRad   = startRad + (months / 48) * 2 * Math.PI; // clockwise
+  const sx = SL.cx + SL.r * Math.cos(startRad);
+  const sy = SL.cy + SL.r * Math.sin(startRad);
+  const ex = SL.cx + SL.r * Math.cos(endRad);
+  const ey = SL.cy + SL.r * Math.sin(endRad);
+  const large = months > 24 ? 1 : 0;
+  return `M ${sx.toFixed(3)} ${sy.toFixed(3)} A ${SL.r} ${SL.r} 0 ${large} 1 ${ex.toFixed(3)} ${ey.toFixed(3)}`;
+}
+
+function sliderHandlePos(months) {
+  const rad = -Math.PI / 2 + (months / 48) * 2 * Math.PI;
+  return {
+    x: SL.cx + SL.r * Math.cos(rad),
+    y: SL.cy + SL.r * Math.sin(rad)
+  };
+}
+
+function updateSlider(months) {
+  MONTHS_BACK = Math.max(0, Math.min(48, months));
+
+  const arc    = document.getElementById("slider-arc");
+  const handle = document.getElementById("slider-handle");
+  const main   = document.getElementById("slider-main");
+  const sub    = document.getElementById("slider-sub");
+
+  arc.setAttribute("d", sliderArcPath(MONTHS_BACK));
+
+  const hp = sliderHandlePos(MONTHS_BACK);
+  handle.setAttribute("cx", hp.x.toFixed(3));
+  handle.setAttribute("cy", hp.y.toFixed(3));
+
+  main.textContent = sliderFormat(MONTHS_BACK);
+  sub.textContent  = MONTHS_BACK === 0 ? "today only" : "of history";
+}
+
+function svgClientToMonths(svgEl, clientX, clientY) {
+  const rect   = svgEl.getBoundingClientRect();
+  const scaleX = 240 / rect.width;
+  const scaleY = 240 / rect.height;
+  const svgX   = (clientX - rect.left) * scaleX;
+  const svgY   = (clientY - rect.top)  * scaleY;
+
+  // atan2 from center, then normalize clockwise from 12 o'clock
+  const angle    = Math.atan2(svgY - SL.cy, svgX - SL.cx) * 180 / Math.PI;
+  const adjusted = ((angle + 90) + 360) % 360;
+  return Math.round(adjusted / 360 * 48);
+}
+
+function initSlider() {
+  const svg = document.getElementById("time-slider");
+
+  // Mouse
+  svg.addEventListener("mousedown", e => {
+    sliderDragging = true;
+    document.getElementById("slider-handle").classList.add("dragging");
+    updateSlider(svgClientToMonths(svg, e.clientX, e.clientY));
+    e.preventDefault();
+  });
+  document.addEventListener("mousemove", e => {
+    if (!sliderDragging) return;
+    updateSlider(svgClientToMonths(svg, e.clientX, e.clientY));
+  });
+  document.addEventListener("mouseup", () => {
+    sliderDragging = false;
+    const h = document.getElementById("slider-handle");
+    if (h) h.classList.remove("dragging");
+  });
+
+  // Touch
+  svg.addEventListener("touchstart", e => {
+    sliderDragging = true;
+    const t = e.touches[0];
+    updateSlider(svgClientToMonths(svg, t.clientX, t.clientY));
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener("touchmove", e => {
+    if (!sliderDragging) return;
+    const t = e.touches[0];
+    updateSlider(svgClientToMonths(svg, t.clientX, t.clientY));
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener("touchend", () => { sliderDragging = false; });
+
+  // Set initial position
+  updateSlider(18);
+}
+
+// ════════════════════════════════════════════════
+// BOOT
+// ════════════════════════════════════════════════
+initSlider();
+init();
+</script>
+</body>
+</html>
