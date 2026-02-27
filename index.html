@@ -528,6 +528,49 @@
   .drill-table .att-yes { color: var(--primary); font-weight: 600; }
   .drill-table .att-no  { color: #d1d5db; }
 
+  /* ── Demo button ───────────────────────────── */
+  .demo-divider {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 18px 0 14px;
+    color: rgba(255,255,255,0.30);
+    font-size: .75rem;
+  }
+  .demo-divider::before,
+  .demo-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: rgba(255,255,255,0.12);
+  }
+
+  .btn-demo {
+    width: 100%;
+    padding: 12px 20px;
+    background: rgba(255,255,255,0.06);
+    border: 1px dashed rgba(255,255,255,0.22);
+    border-radius: 14px;
+    color: rgba(255,255,255,0.55);
+    font-size: .85rem;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    letter-spacing: .01em;
+    transition: background 200ms ease, color 200ms ease, border-color 200ms ease;
+  }
+  .btn-demo:hover {
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.80);
+    border-color: rgba(255,255,255,0.35);
+  }
+  .btn-demo:active { transform: scale(0.98); }
+  .btn-demo-icon { font-size: .9rem; opacity: .7; }
+
   /* ── Section dividers ───────────────────────── */
   .section-divider {
     display: flex;
@@ -691,6 +734,11 @@
 
     <div id="error-msg"></div>
     <button class="btn-primary" id="login-btn" onclick="login()">Sign in with Microsoft</button>
+
+    <div class="demo-divider"><span>or</span></div>
+    <button class="btn-demo" onclick="loadDemoData()">
+      <span class="btn-demo-icon">✦</span> Try with demo data
+    </button>
   </div>
 </div>
 
@@ -902,6 +950,223 @@
 </div>
 
 <script>
+// ════════════════════════════════════════════════
+// DEMO DATA
+// ════════════════════════════════════════════════
+function generateDemoData() {
+  const ME_EMAIL = "csongor@cambri.io";
+  const ME_NAME  = "Csongor";
+
+  // Deterministic seeded RNG for reproducible charts
+  let seed = 7919;
+  const rng  = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
+  const pick = arr => arr[Math.floor(rng() * arr.length)];
+  const rInt = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+  const rBool = (p = 0.5) => rng() < p;
+
+  const C = [
+    // Inner circle
+    { name:"Sarah Chen",       email:"sarah.chen@acmecorp.io",        freq:1.00 },
+    { name:"Marcus Webb",      email:"marcus@nexuspartners.com",       freq:0.88 },
+    { name:"Priya Sharma",     email:"p.sharma@acmecorp.io",          freq:0.80 },
+    { name:"James O'Brien",    email:"james@bridgevc.com",            freq:0.72 },
+    { name:"Lena Fischer",     email:"l.fischer@acmecorp.io",         freq:0.65 },
+    // Regular
+    { name:"Tom Bradley",      email:"t.bradley@stellartech.io",      freq:0.48 },
+    { name:"Aisha Osei",       email:"a.osei@globalstrategy.com",     freq:0.42 },
+    { name:"David Park",       email:"d.park@acmecorp.io",            freq:0.38 },
+    { name:"Emma Thornton",    email:"e.thornton@counsellors.co",     freq:0.36 },
+    { name:"Rafael Santos",    email:"r.santos@launchbase.io",        freq:0.30 },
+    { name:"Yuki Tanaka",      email:"y.tanaka@globalstrategy.com",   freq:0.26 },
+    { name:"Hannah Mueller",   email:"h.mueller@nexuspartners.com",   freq:0.24 },
+    // Occasional
+    { name:"Ben Foster",       email:"ben@fostervc.com",              freq:0.14 },
+    { name:"Clara Diaz",       email:"c.diaz@launchbase.io",          freq:0.12 },
+    { name:"Oliver Wright",    email:"o.wright@acmecorp.io",          freq:0.10 },
+    { name:"Nadia Ali",        email:"nadia@globalstrategy.com",      freq:0.10 },
+    { name:"Chris Barton",     email:"c.barton@stellartech.io",       freq:0.08 },
+    { name:"Fatima Hassan",    email:"f.hassan@counsellors.co",       freq:0.08 },
+    { name:"Luke Peterson",    email:"l.peterson@nexuspartners.com",  freq:0.07 },
+    { name:"Anna Kowalski",    email:"a.kowalski@acmecorp.io",        freq:0.07 },
+    { name:"Sam Torres",       email:"s.torres@launchbase.io",        freq:0.06 },
+    { name:"Mei Lin",          email:"mei.lin@globalstrategy.com",    freq:0.06 },
+    { name:"Jack Harrison",    email:"j.harrison@fostervc.com",       freq:0.05 },
+    { name:"Bea Dupont",       email:"b.dupont@counsellors.co",       freq:0.05 },
+    { name:"Arjun Mehta",      email:"a.mehta@bridgevc.com",          freq:0.04 },
+  ];
+
+  const SUBJ = {
+    "Sales":          ["Proposal — {co} Q{q}","Follow-up: {name} <> {co}","{co} deal status","Intro: {name} from {co}","Pricing update — {co}","Pipeline review Q{q}","{co} contract renewal","Customer success: {co}"],
+    "Fundraising":    ["Series A — investor update","Intro: {name} ({vc})","Cap table model","{vc} term sheet review","Monthly investor update","Due diligence checklist","Lead investor: {name}","Fund close — final steps"],
+    "Hiring":         ["Interview: {name} — {role}","Offer letter — {name}","Hiring pipeline update","Candidate feedback: {name}","Reference check — {name}","New role: {role}","{name} — start date","Recruiter brief: {role}"],
+    "Finance":        ["Invoice #{n} — {mo}","Q{q} budget review","Expense report — {mo}","Monthly P&L — {mo}","Payment #{n} confirmed","{mo} payroll","FY{yr} projections","A/P queue update"],
+    "Legal":          ["NDA — {co}","Contract review — {co}","IP assignment — {name}","T&Cs update","Employment agreement — {name}","SHA revision","Compliance update — {mo}","DPA — {co}"],
+    "1:1 / Sync":     ["1:1 agenda — {name}","Weekly sync with {name}","Catch-up re: {topic}","Quick chat?","Our call tomorrow","{topic} — let's align","Coffee — {name}","Monthly 1:1 — {name}"],
+    "Internal":       ["All-hands recap — {mo}","Company update — {mo}","Team announcement","Q{q} OKR review","Culture survey results","Office hours — {mo}","{dept} offsite","Internal newsletter"],
+    "Project / Other":["Project {proj}: status","Sprint {n} planning","{proj} launch prep","Feature request: {feature}","Bug triage — {proj}","{proj} roadmap Q{q}","Milestone reached","User research findings"],
+  };
+
+  const CAT_W = [
+    ["Internal",0.27],["Sales",0.20],["1:1 / Sync",0.14],["Project / Other",0.14],
+    ["Finance",0.09],["Hiring",0.08],["Legal",0.05],["Fundraising",0.03],
+  ];
+  function pickCat() {
+    let r = rng(), cum = 0;
+    for (const [cat,w] of CAT_W) { cum += w; if (r < cum) return cat; }
+    return "Project / Other";
+  }
+
+  const FILL = {
+    cos:     ["Acme Corp","TechVentures","GlobalTech","LaunchBase","Stellar IO","Nexus","BridgeCo"],
+    vcs:     ["Sequoia","a16z","Accel","Index","Northzone","Tiger","Benchmark"],
+    roles:   ["Head of Sales","Sr Engineer","Marketing Lead","Product Manager","Data Analyst","CTO","CFO"],
+    projs:   ["Phoenix","Atlas","Nebula","Apex","Horizon","Forge","Nova"],
+    features:["dark mode","SSO","export API","notifications","bulk upload","webhooks"],
+    topics:  ["roadmap","Q3 targets","budget","team structure","launch timeline","strategy"],
+    depts:   ["Engineering","Marketing","Sales","Finance","Product","Design"],
+    months:  ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"],
+  };
+
+  function mkSubject(cat) {
+    const tpl = pick(SUBJ[cat]);
+    const now  = new Date();
+    return tpl
+      .replace("{name}",    pick(C).name.split(" ")[0])
+      .replace("{co}",      pick(FILL.cos))
+      .replace("{vc}",      pick(FILL.vcs))
+      .replace("{role}",    pick(FILL.roles))
+      .replace("{proj}",    pick(FILL.projs))
+      .replace("{feature}", pick(FILL.features))
+      .replace("{topic}",   pick(FILL.topics))
+      .replace("{dept}",    pick(FILL.depts))
+      .replace("{mo}",      FILL.months[now.getMonth()])
+      .replace("{yr}",      String(now.getFullYear()).slice(-2))
+      .replace("{q}",       String(Math.ceil((now.getMonth()+1)/3)))
+      .replace("{n}",       String(rInt(100,999)));
+  }
+
+  const PREVIEWS = [
+    "Following up on our conversation from last week. I wanted to share the updated documents and get your thoughts before we proceed with the next steps.",
+    "Quick note — I've reviewed the materials and have a few questions. Can we find 30 minutes to connect this week? I think it's worth aligning before we move forward.",
+    "Thanks for the intro! I've had a chance to look through the details and I think there's a strong fit here. Happy to discuss further at your convenience.",
+    "Just wanted to confirm we're still on for tomorrow's call. Let me know if anything changes on your end and we can reschedule if needed.",
+    "I've attached the revised version based on your feedback. Please let me know if this looks good or if you'd like any further changes before we finalize.",
+    "Great news — the team has signed off on this. I'll coordinate next steps on our end and keep you in the loop as things progress over the coming days.",
+    "Circling back on this thread. I know we've all been busy but wanted to make sure this doesn't fall through the cracks given the timeline we discussed.",
+    "Please find attached the document you requested. Let me know if you need anything else from my side or if there are outstanding questions I can address.",
+    "Quick update: we've made progress on this since we last spoke. I'll share more context in our next sync but wanted to flag the movement now.",
+    "Thanks for your patience on this. I've been working through the details carefully and wanted to give you a proper answer rather than something rushed.",
+    "Wanted to loop you in on this thread as it's become directly relevant to the work we discussed. Feel free to jump in with any thoughts or questions.",
+    "This is looking solid overall. A few minor items to resolve but nothing blocking progress. Let's aim to finalize by end of week if possible.",
+    "Following up on the open items from our last meeting. I've made progress on most of them — see my notes below for the full picture.",
+    "Just a heads up that there's been a slight delay on this end. Nothing major, wanted to keep you informed so there are no surprises down the line.",
+    "I've shared this with the relevant stakeholders on our side and we're aligned. Currently waiting on final sign-off from the finance team before proceeding.",
+    "Really appreciate you moving quickly on this. Looking forward to getting started and making meaningful progress together on this initiative.",
+    "A few things I'd like to discuss before we finalize. I'll prepare a brief agenda and send it over the day before so we can make the most of our time.",
+    "This got a bit more complex than initially expected, but I think we have a solid path forward now. Let me walk you through my thinking when we connect.",
+    "Good timing on this — we were just discussing something very similar internally. There may be a real opportunity here worth exploring together.",
+    "Everything looks good from our side. Just need your signature on the attached and we're ready to move forward and kick things off officially.",
+  ];
+
+  const received = [], sent = [];
+  let msgId = 1, convId = 1;
+  const now = new Date();
+
+  // Month busyness index (0=Jan … 11=Dec)
+  const BUSY = [1.15,1.10,1.08,0.95,0.90,0.82,0.72,0.80,0.97,1.12,1.22,0.68];
+
+  for (let m = 0; m < 12; m++) {
+    const mDate  = new Date(now.getFullYear(), now.getMonth() - 11 + m, 1);
+    const daysInM = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0).getDate();
+    const busy   = BUSY[mDate.getMonth()];
+
+    for (const ct of C) {
+      const count = Math.max(0, Math.round(ct.freq * 14 * busy) + rInt(-1, 1));
+      for (let i = 0; i < count; i++) {
+        let day = rInt(1, daysInM);
+        const dow = new Date(mDate.getFullYear(), mDate.getMonth(), day).getDay();
+        if ((dow === 0 || dow === 6) && rBool(0.72)) continue; // skip most weekends
+        const hour = rBool(0.72) ? rInt(8,18) : rInt(6,22);
+        const ts   = new Date(mDate.getFullYear(), mDate.getMonth(), day, hour, rInt(0,59), 0);
+        if (ts > now) continue;
+
+        const cat  = pickCat();
+        const subj = mkSubject(cat);
+        const cId  = "conv_" + convId;
+        const ccList = rBool(0.18) ? [{ emailAddress: { name: pick(C.filter(x=>x!==ct)).name, address: pick(C.filter(x=>x!==ct)).email } }] : [];
+
+        received.push({
+          id: "r"+msgId++, receivedDateTime: ts.toISOString(),
+          from: { emailAddress: { name: ct.name, address: ct.email } },
+          toRecipients: [{ emailAddress: { name: ME_NAME, address: ME_EMAIL } }],
+          ccRecipients: ccList, subject: subj, conversationId: cId,
+          isRead: rBool(0.84), hasAttachments: rBool(0.17), bodyPreview: pick(PREVIEWS),
+        });
+
+        // Reply (builds thread + response-time data)
+        if (rBool(0.46)) {
+          const delayMin = rInt(15, 48*60);
+          const rTs = new Date(ts.getTime() + delayMin*60000);
+          if (rTs <= now) {
+            sent.push({
+              id: "s"+msgId++, sentDateTime: rTs.toISOString(),
+              from: { emailAddress: { name: ME_NAME, address: ME_EMAIL } },
+              toRecipients: [{ emailAddress: { name: ct.name, address: ct.email } }],
+              ccRecipients: ccList, subject: "Re: "+subj, conversationId: cId,
+              hasAttachments: rBool(0.08), bodyPreview: pick(PREVIEWS),
+            });
+            // Their follow-up reply
+            if (rBool(0.28)) {
+              const r2Ts = new Date(rTs.getTime() + rInt(30,6*60)*60000);
+              if (r2Ts <= now) {
+                received.push({
+                  id: "r"+msgId++, receivedDateTime: r2Ts.toISOString(),
+                  from: { emailAddress: { name: ct.name, address: ct.email } },
+                  toRecipients: [{ emailAddress: { name: ME_NAME, address: ME_EMAIL } }],
+                  ccRecipients: ccList, subject: "Re: "+subj, conversationId: cId,
+                  isRead: rBool(0.88), hasAttachments: rBool(0.10), bodyPreview: pick(PREVIEWS),
+                });
+              }
+            }
+          }
+        }
+
+        // Proactive sent emails (not replies)
+        if (rBool(0.14)) {
+          const sDay = rInt(1, daysInM);
+          const sTs  = new Date(mDate.getFullYear(), mDate.getMonth(), sDay, rBool(0.75)?rInt(8,18):rInt(6,22), rInt(0,59), 0);
+          if (sTs <= now) {
+            sent.push({
+              id: "s"+msgId++, sentDateTime: sTs.toISOString(),
+              from: { emailAddress: { name: ME_NAME, address: ME_EMAIL } },
+              toRecipients: [{ emailAddress: { name: ct.name, address: ct.email } }],
+              ccRecipients: [], subject: mkSubject(cat),
+              conversationId: "conv_"+(convId+5000),
+              hasAttachments: rBool(0.12), bodyPreview: pick(PREVIEWS),
+            });
+          }
+        }
+
+        convId++;
+      }
+    }
+  }
+
+  return { received, sent };
+}
+
+function loadDemoData() {
+  MONTHS_BACK = 12;
+  const { received, sent } = generateDemoData();
+  ALL_RECEIVED = received;
+  ALL_SENT     = sent;
+  document.getElementById("account-badge").textContent = "Demo Mode";
+  const lbl = document.getElementById("overview-label");
+  if (lbl) lbl.textContent = "12-month overview";
+  showScreen("dashboard");
+  renderDashboard(ALL_RECEIVED, ALL_SENT);
+}
+
 // ════════════════════════════════════════════════
 // CONFIG
 // ════════════════════════════════════════════════
