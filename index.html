@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Email Dashboard</title>
+<title>Comms Dashboard</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -629,6 +629,167 @@
     grid-template-columns: 1fr 2fr;
   }
 
+  /* ── Tab bar ─────────────────────────────────── */
+  .tab-bar {
+    display: flex;
+    gap: 4px;
+    padding: 6px;
+    background: var(--bg);
+    border-radius: 14px;
+    margin: 0 32px 0;
+    position: sticky;
+    top: 60px;
+    z-index: 19;
+  }
+  .tab-btn {
+    flex: 1;
+    padding: 10px 18px;
+    border: none;
+    border-radius: 10px;
+    background: transparent;
+    color: var(--muted);
+    font-family: inherit;
+    font-size: .82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s, color .2s, box-shadow .2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+  }
+  .tab-btn:hover { background: rgba(0,0,0,0.04); color: var(--text-d); }
+  .tab-btn.active {
+    background: var(--card);
+    color: var(--text-d);
+    box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  }
+  .tab-icon { font-size: .95rem; }
+  .tab-badge {
+    font-size: .65rem;
+    padding: 1px 7px;
+    border-radius: 99px;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+  .tab-badge.connected { background: #dcfce7; color: #15803d; }
+  .tab-badge.not-connected { background: #fef3c7; color: #92400e; }
+
+  .tab-section { display: none; }
+  .tab-section.active { display: block; }
+
+  /* ── Slack connect prompt ──────────────────── */
+  .connect-prompt {
+    text-align: center;
+    padding: 80px 40px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+  .connect-prompt-icon { font-size: 3rem; margin-bottom: 16px; }
+  .connect-prompt h2 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text-d); }
+  .connect-prompt p { font-size: .88rem; color: var(--muted); margin-bottom: 28px; line-height: 1.6; }
+  .btn-slack {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 13px 28px;
+    background: #4A154B;
+    color: #fff;
+    border: none;
+    border-radius: 12px;
+    font-family: inherit;
+    font-size: .9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background .2s, transform .15s;
+  }
+  .btn-slack:hover { background: #611f69; transform: translateY(-1px); }
+  .btn-slack:active { transform: scale(0.98); }
+  .btn-slack svg { width: 20px; height: 20px; }
+
+  /* ── Relationship cards ───────────────────── */
+  .rel-controls {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .rel-sort, .rel-filter {
+    padding: 7px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-family: inherit;
+    font-size: .8rem;
+    background: var(--card);
+    color: var(--text-d);
+    cursor: pointer;
+  }
+  .rel-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 14px;
+  }
+  .rel-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 20px;
+    box-shadow: var(--shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .rel-card-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .rel-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: .85rem;
+    flex-shrink: 0;
+  }
+  .rel-name { font-weight: 600; font-size: .92rem; }
+  .rel-email { font-size: .75rem; color: var(--muted); }
+  .rel-channel-bar {
+    display: flex;
+    height: 8px;
+    border-radius: 99px;
+    overflow: hidden;
+    background: var(--bg);
+  }
+  .rel-channel-bar .email-part { background: var(--primary); }
+  .rel-channel-bar .slack-part { background: #E01E5A; }
+  .rel-stats {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+  }
+  .rel-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+  .rel-stat-value {
+    font-size: .92rem;
+    font-weight: 700;
+    color: var(--text-d);
+  }
+  .rel-stat-label {
+    font-size: .68rem;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .04em;
+  }
+
   @media (max-width: 800px) {
     main { padding: 16px; }
     .charts-grid { grid-template-columns: 1fr; }
@@ -636,6 +797,9 @@
     .chart-card.full { grid-column: 1; }
     .drill-panel { max-width: 100%; }
     .login-card { width: 92vw; padding: 36px 24px 28px; }
+    .tab-bar { margin: 0 16px; }
+    .tab-btn { padding: 8px 10px; font-size: .75rem; }
+    .rel-cards-grid { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -648,9 +812,9 @@
   <div class="glass-orb glass-orb-3"></div>
 
   <div class="login-card">
-    <div class="login-icon">📧</div>
-    <h1>Email Dashboard</h1>
-    <p>Sign in with your Microsoft work account to analyse your email patterns.</p>
+    <div class="login-icon">📊</div>
+    <h1>Comms Dashboard</h1>
+    <p>Analyse your email and Slack communication patterns. Connect one or both to get started.</p>
 
     <!-- ── Radial time slider ── -->
     <div class="time-slider-section">
@@ -735,6 +899,11 @@
     <div id="error-msg"></div>
     <button class="btn-primary" id="login-btn" onclick="login()">Sign in with Microsoft</button>
 
+    <div class="demo-divider"><span>or connect</span></div>
+    <button class="btn-slack" onclick="connectSlack()" style="width:100%;justify-content:center">
+      <svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z"/></svg>
+      Connect Slack
+    </button>
     <div class="demo-divider"><span>or</span></div>
     <button class="btn-demo" onclick="loadDemoData()">
       <span class="btn-demo-icon">✦</span> Try with demo data
@@ -755,14 +924,32 @@
 
   <header>
     <div class="header-left">
-      <span style="font-size:1.4rem">📧</span>
-      <h1>Email Dashboard</h1>
+      <span style="font-size:1.4rem">📊</span>
+      <h1>Comms Dashboard</h1>
       <span id="account-badge"></span>
     </div>
     <button class="btn-ghost" onclick="signOut()">Sign out</button>
   </header>
 
+  <!-- Tab bar -->
+  <nav class="tab-bar" id="main-tab-bar">
+    <button class="tab-btn active" data-tab="email" onclick="showTab('email')">
+      <span class="tab-icon">📧</span> Email
+      <span class="tab-badge connected" id="badge-email" style="display:none">✓</span>
+    </button>
+    <button class="tab-btn" data-tab="slack" onclick="showTab('slack')">
+      <span class="tab-icon">💬</span> Slack
+      <span class="tab-badge not-connected" id="badge-slack">connect</span>
+    </button>
+    <button class="tab-btn" data-tab="relationships" onclick="showTab('relationships')">
+      <span class="tab-icon">🤝</span> Relationships
+    </button>
+  </nav>
+
   <main>
+    <!-- ═══ EMAIL TAB ══════════════════════════════ -->
+    <section id="tab-email" class="tab-section active">
+
     <!-- Stats -->
     <div>
       <div class="section-label" id="overview-label">Overview</div>
@@ -918,6 +1105,144 @@
       <div class="chart-subtitle">Monthly email volume to your most frequent recipients · click a name to drill in</div>
       <div class="chart-wrap" style="height:240px"><canvas id="c-recipients-trend"></canvas></div>
     </div>
+
+    </section><!-- /tab-email -->
+
+    <!-- ═══ SLACK TAB ══════════════════════════════ -->
+    <section id="tab-slack" class="tab-section">
+
+      <!-- Connect prompt (shown when Slack not connected) -->
+      <div id="slack-connect-prompt" class="connect-prompt">
+        <div class="connect-prompt-icon">💬</div>
+        <h2>Connect your Slack workspace</h2>
+        <p>Analyse your Slack messaging patterns — message volume, response times, channel activity, and more.</p>
+        <button class="btn-slack" onclick="connectSlack()">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52zm1.271 0a2.527 2.527 0 0 1 2.521-2.52 2.527 2.527 0 0 1 2.521 2.52v6.313A2.528 2.528 0 0 1 8.834 24a2.528 2.528 0 0 1-2.521-2.522v-6.313zM8.834 5.042a2.528 2.528 0 0 1-2.521-2.52A2.528 2.528 0 0 1 8.834 0a2.528 2.528 0 0 1 2.521 2.522v2.52H8.834zm0 1.271a2.528 2.528 0 0 1 2.521 2.521 2.528 2.528 0 0 1-2.521 2.521H2.522A2.528 2.528 0 0 1 0 8.834a2.528 2.528 0 0 1 2.522-2.521h6.312zM18.956 8.834a2.528 2.528 0 0 1 2.522-2.521A2.528 2.528 0 0 1 24 8.834a2.528 2.528 0 0 1-2.522 2.521h-2.522V8.834zm-1.27 0a2.528 2.528 0 0 1-2.523 2.521 2.527 2.527 0 0 1-2.52-2.521V2.522A2.527 2.527 0 0 1 15.163 0a2.528 2.528 0 0 1 2.523 2.522v6.312zM15.163 18.956a2.528 2.528 0 0 1 2.523 2.522A2.528 2.528 0 0 1 15.163 24a2.527 2.527 0 0 1-2.52-2.522v-2.522h2.52zm0-1.27a2.527 2.527 0 0 1-2.52-2.523 2.527 2.527 0 0 1 2.52-2.52h6.315A2.528 2.528 0 0 1 24 15.163a2.528 2.528 0 0 1-2.522 2.523h-6.315z"/></svg>
+          Connect Slack
+        </button>
+      </div>
+
+      <!-- Charts (shown when Slack connected or demo mode) -->
+      <div id="slack-charts" style="display:none">
+        <div>
+          <div class="section-label" id="slack-overview-label">Slack Overview</div>
+          <div class="stats-grid" id="slack-stats-grid"></div>
+        </div>
+
+        <div class="chart-card full">
+          <div class="chart-title">Message Volume Over Time</div>
+          <div class="chart-subtitle">Weekly Slack messages — sent vs received</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="c-slack-volume"></canvas></div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#5b6af9"></div>Received</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#f97066"></div>Sent</div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Channel Distribution</div>
+            <div class="chart-subtitle">Top 10 most active channels</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-slack-channels"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Top DM Contacts</div>
+            <div class="chart-subtitle">People you message most</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-slack-dm-contacts"></canvas></div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Response Times</div>
+            <div class="chart-subtitle">How quickly you reply in DMs</div>
+            <div class="chart-wrap" style="height:210px"><canvas id="c-slack-response"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Reaction Analytics</div>
+            <div class="chart-subtitle">Most used emoji reactions</div>
+            <div class="chart-wrap" style="height:210px"><canvas id="c-slack-reactions"></canvas></div>
+          </div>
+        </div>
+
+        <div class="chart-card full">
+          <div class="chart-title">Active Hours</div>
+          <div class="chart-subtitle">When you're most active on Slack (day × hour)</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="c-slack-heatmap"></canvas></div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">DM vs Channel vs Group</div>
+            <div class="chart-subtitle">Message distribution by type</div>
+            <div class="chart-wrap" style="height:220px"><canvas id="c-slack-ratio"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Message Length Trend</div>
+            <div class="chart-subtitle">Average words per message over time</div>
+            <div class="chart-wrap" style="height:220px"><canvas id="c-slack-length"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+    </section><!-- /tab-slack -->
+
+    <!-- ═══ RELATIONSHIPS TAB ══════════════════════ -->
+    <section id="tab-relationships" class="tab-section">
+
+      <!-- Prompt when missing data -->
+      <div id="rel-connect-prompt" class="connect-prompt">
+        <div class="connect-prompt-icon">🤝</div>
+        <h2>Cross-channel relationships</h2>
+        <p>Connect both your email and Slack to see how you communicate with each person across channels, or try demo data.</p>
+        <button class="btn-slack" onclick="loadDemoData()" style="background:var(--primary)">
+          <span>✦</span> Load demo data
+        </button>
+      </div>
+
+      <!-- Relationship content (shown when both connected or demo) -->
+      <div id="rel-content" style="display:none">
+
+        <!-- Aggregate cross-channel charts -->
+        <div class="section-divider">
+          <span class="section-label-inline">Cross-channel Overview</span>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Channel Preference</div>
+            <div class="chart-subtitle">How contacts split across email vs Slack</div>
+            <div class="chart-wrap" style="height:240px"><canvas id="c-rel-preference"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Engagement Score</div>
+            <div class="chart-subtitle">Combined engagement across both platforms</div>
+            <div class="chart-wrap" style="height:240px"><canvas id="c-rel-engagement"></canvas></div>
+          </div>
+        </div>
+
+        <div class="section-divider">
+          <span class="section-label-inline">Per-person Relationships</span>
+        </div>
+
+        <div class="rel-controls">
+          <select class="rel-sort" id="rel-sort" onchange="renderRelCards()">
+            <option value="total">Sort: Total interactions</option>
+            <option value="recent">Sort: Most recent</option>
+            <option value="response">Sort: Response time</option>
+          </select>
+          <select class="rel-filter" id="rel-filter" onchange="renderRelCards()">
+            <option value="all">Show: All contacts</option>
+            <option value="both">Both channels</option>
+            <option value="email-only">Email only</option>
+            <option value="slack-only">Slack only</option>
+          </select>
+        </div>
+
+        <div class="rel-cards-grid" id="rel-cards-grid"></div>
+      </div>
+
+    </section><!-- /tab-relationships -->
 
   </main>
 </div><!-- /dashboard -->
@@ -1155,16 +1480,198 @@ function generateDemoData() {
   return { received, sent };
 }
 
+function generateSlackDemoData() {
+  // Use a different seed so Slack data differs from email but is reproducible
+  let seed = 4219;
+  const rng  = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
+  const pick = arr => arr[Math.floor(rng() * arr.length)];
+  const rInt = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+  const rBool = (p = 0.5) => rng() < p;
+
+  const ME_ID = "U_DEMO_ME";
+  const ME_NAME = "Csongor";
+
+  // Slack users — ~60% overlap with email contacts
+  const slackUsers = [
+    { id:"U001", real_name:"Sarah Chen",     profile:{email:"sarah.chen@acmecorp.io"} },
+    { id:"U002", real_name:"Marcus Webb",     profile:{email:"marcus@nexuspartners.com"} },
+    { id:"U003", real_name:"Priya Sharma",    profile:{email:"p.sharma@acmecorp.io"} },
+    { id:"U004", real_name:"James O'Brien",   profile:{email:"james@bridgevc.com"} },
+    { id:"U005", real_name:"Lena Fischer",    profile:{email:"l.fischer@acmecorp.io"} },
+    { id:"U006", real_name:"Tom Bradley",     profile:{email:"t.bradley@stellartech.io"} },
+    { id:"U007", real_name:"Aisha Osei",      profile:{email:"a.osei@globalstrategy.com"} },
+    { id:"U008", real_name:"David Park",      profile:{email:"d.park@acmecorp.io"} },
+    // Slack-only contacts
+    { id:"U009", real_name:"Kyle Nguyen",     profile:{email:"k.nguyen@acmecorp.io"} },
+    { id:"U010", real_name:"Zara Mitchell",   profile:{email:"z.mitchell@acmecorp.io"} },
+    { id:"U011", real_name:"Rio Tanaka",      profile:{email:"r.tanaka@stellartech.io"} },
+    { id:"U012", real_name:"Elena Volkov",    profile:{email:"e.volkov@acmecorp.io"} },
+    { id:"U013", real_name:"Sam Torres",      profile:{email:"s.torres@launchbase.io"} },
+    { id:"U014", real_name:"Nina Patel",      profile:{email:"n.patel@acmecorp.io"} },
+    { id:"U015", real_name:"Jake Foster",     profile:{email:"j.foster@fostervc.com"} },
+  ];
+
+  const userMap = {};
+  slackUsers.forEach(u => { userMap[u.id] = u.real_name; });
+  userMap[ME_ID] = ME_NAME;
+
+  // Channels
+  const channels = [
+    { id:"C001", name:"general",        is_im:false, is_mpim:false, is_private:false },
+    { id:"C002", name:"product",        is_im:false, is_mpim:false, is_private:false },
+    { id:"C003", name:"engineering",    is_im:false, is_mpim:false, is_private:false },
+    { id:"C004", name:"sales",          is_im:false, is_mpim:false, is_private:false },
+    { id:"C005", name:"random",         is_im:false, is_mpim:false, is_private:false },
+    { id:"C006", name:"leadership",     is_im:false, is_mpim:false, is_private:true },
+    { id:"C007", name:"hiring",         is_im:false, is_mpim:false, is_private:true },
+  ];
+
+  // DM channels with users
+  const dmChannels = slackUsers.map((u, i) => ({
+    id: `D${String(i+1).padStart(3,"0")}`, name: null, is_im: true, is_mpim: false, is_private: false, user: u.id
+  }));
+
+  const allChannels = [...channels, ...dmChannels];
+
+  const EMOJIS = ["+1","heart","fire","rocket","eyes","100","tada","thinking_face","pray","clap","muscle","star","check","wave","brain"];
+  const TEXTS = [
+    "Sounds good, let's do it",
+    "Can you share the latest version?",
+    "I'll take a look and get back to you",
+    "Thanks for the update!",
+    "Let's sync on this tomorrow",
+    "Great work on this",
+    "I have a few questions about the approach",
+    "Agreed, let's move forward",
+    "Can we schedule a quick call?",
+    "I'll handle this",
+    "Just pushed the changes",
+    "LGTM, ship it",
+    "Need to revisit this after the release",
+    "cc @channel for visibility",
+    "Here's the doc: docs.google.com/...",
+    "Running a bit behind, will update by EOD",
+    "Blocked on this — need input from product",
+    "Happy to help with that",
+    "Nice catch, fixing now",
+    "Let me check with the team",
+  ];
+
+  const messages = [];
+  const now = Date.now() / 1000;
+  const BUSY = [1.15,1.10,1.08,0.95,0.90,0.82,0.72,0.80,0.97,1.12,1.22,0.68];
+  const nowDate = new Date();
+
+  // Channel frequency weights
+  const chFreq = { C001:0.15, C002:0.20, C003:0.18, C004:0.10, C005:0.08, C006:0.06, C007:0.04 };
+  // DM frequency tied to user
+  const dmFreq = [0.12,0.10,0.08,0.07,0.06,0.05,0.04,0.04,0.03,0.03,0.02,0.02,0.02,0.01,0.01];
+
+  for (let m = 0; m < 12; m++) {
+    const mDate = new Date(nowDate.getFullYear(), nowDate.getMonth() - 11 + m, 1);
+    const daysInM = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0).getDate();
+    const busy = BUSY[mDate.getMonth()];
+
+    // Public/private channel messages
+    channels.forEach(ch => {
+      const freq = chFreq[ch.id] || 0.05;
+      const count = Math.max(0, Math.round(freq * 180 * busy) + rInt(-3, 3));
+      for (let i = 0; i < count; i++) {
+        const day = rInt(1, daysInM);
+        const d = new Date(mDate.getFullYear(), mDate.getMonth(), day);
+        if ((d.getDay() === 0 || d.getDay() === 6) && rBool(0.8)) continue;
+        const hour = rBool(0.75) ? rInt(9, 18) : rInt(7, 22);
+        const ts = new Date(mDate.getFullYear(), mDate.getMonth(), day, hour, rInt(0,59), rInt(0,59));
+        if (ts.getTime()/1000 > now) continue;
+
+        const isMine = rBool(0.25);
+        const userId = isMine ? ME_ID : pick(slackUsers).id;
+        const reactions = rBool(0.15) ? [{ name: pick(EMOJIS), count: rInt(1,4) }] : [];
+        if (rBool(0.08)) reactions.push({ name: pick(EMOJIS), count: rInt(1,2) });
+
+        messages.push({
+          ts: ts.getTime() / 1000,
+          userId,
+          userName: userMap[userId],
+          channelId: ch.id,
+          channelName: ch.name,
+          channelType: ch.is_private ? "private" : "public",
+          text: pick(TEXTS),
+          reactions,
+          threadTs: rBool(0.2) ? String(ts.getTime()/1000 - rInt(60, 3600)) : null,
+          replyCount: rBool(0.12) ? rInt(1, 5) : 0,
+          isReply: rBool(0.18),
+        });
+      }
+    });
+
+    // DM messages
+    dmChannels.forEach((ch, idx) => {
+      const freq = dmFreq[idx] || 0.01;
+      const count = Math.max(0, Math.round(freq * 120 * busy) + rInt(-1, 1));
+      for (let i = 0; i < count; i++) {
+        const day = rInt(1, daysInM);
+        const d = new Date(mDate.getFullYear(), mDate.getMonth(), day);
+        if ((d.getDay() === 0 || d.getDay() === 6) && rBool(0.85)) continue;
+        const hour = rBool(0.7) ? rInt(9, 18) : rInt(7, 22);
+        const ts = new Date(mDate.getFullYear(), mDate.getMonth(), day, hour, rInt(0,59), rInt(0,59));
+        if (ts.getTime()/1000 > now) continue;
+
+        const isMine = rBool(0.45);
+        const userId = isMine ? ME_ID : ch.user;
+        const reactions = rBool(0.10) ? [{ name: pick(EMOJIS), count: 1 }] : [];
+
+        messages.push({
+          ts: ts.getTime() / 1000,
+          userId,
+          userName: userMap[userId] || "Unknown",
+          channelId: ch.id,
+          channelName: `DM: ${userMap[ch.user]}`,
+          channelType: "dm",
+          text: pick(TEXTS) + (rBool(0.3) ? " " + pick(TEXTS.slice(0,5)) : ""),
+          reactions,
+          threadTs: null,
+          replyCount: 0,
+          isReply: false,
+        });
+      }
+    });
+  }
+
+  return { messages, channels: allChannels, users: slackUsers, myUserId: ME_ID };
+}
+
 function loadDemoData() {
   MONTHS_BACK = 12;
+
+  // Email demo data
   const { received, sent } = generateDemoData();
   ALL_RECEIVED = received;
   ALL_SENT     = sent;
+  AUTH_STATE.microsoft = true;
+
+  // Slack demo data
+  const slackDemo = generateSlackDemoData();
+  SLACK_DATA.messages  = slackDemo.messages;
+  SLACK_DATA.channels  = slackDemo.channels;
+  SLACK_DATA.users     = slackDemo.users;
+  SLACK_DATA.myUserId  = slackDemo.myUserId;
+  AUTH_STATE.slack = true;
+
   document.getElementById("account-badge").textContent = "Demo Mode";
   const lbl = document.getElementById("overview-label");
   if (lbl) lbl.textContent = "12-month overview";
+  const slbl = document.getElementById("slack-overview-label");
+  if (slbl) slbl.textContent = "12-month Slack overview";
+
   showScreen("dashboard");
+  updateAuthBadges();
+  showSlackCharts();
+  showRelContent();
+
   renderDashboard(ALL_RECEIVED, ALL_SENT);
+  renderSlackDashboard();
+  buildAndRenderRelationships();
 }
 
 // ════════════════════════════════════════════════
@@ -1183,6 +1690,16 @@ let MONTHS_BACK = 18;
 // ════════════════════════════════════════════════
 let ALL_RECEIVED = [];
 let ALL_SENT     = [];
+
+// ── Slack state ──
+let AUTH_STATE   = { microsoft: false, slack: false };
+let SLACK_TOKEN  = null;
+let SLACK_DATA   = { messages: [], channels: [], users: [], myUserId: null };
+let REL_CONTACTS = []; // merged relationship contacts
+
+// ── Slack config ──
+const SLACK_CLIENT_ID  = "729885942644.10595509625094";
+const SLACK_REDIRECT   = window.location.origin + "/api/slack-callback";
 
 // ════════════════════════════════════════════════
 // MSAL SETUP
@@ -1228,19 +1745,105 @@ function showError(msg) {
 }
 
 // ════════════════════════════════════════════════
+// TAB NAVIGATION
+// ════════════════════════════════════════════════
+function showTab(name) {
+  document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  const sec = document.getElementById('tab-' + name);
+  if (sec) sec.classList.add('active');
+  const btn = document.querySelector(`.tab-btn[data-tab="${name}"]`);
+  if (btn) btn.classList.add('active');
+}
+
+function updateAuthBadges() {
+  const eb = document.getElementById('badge-email');
+  const sb = document.getElementById('badge-slack');
+  if (eb) {
+    if (AUTH_STATE.microsoft) { eb.style.display = ''; eb.className = 'tab-badge connected'; eb.textContent = '✓'; }
+    else { eb.style.display = 'none'; }
+  }
+  if (sb) {
+    if (AUTH_STATE.slack) { sb.className = 'tab-badge connected'; sb.textContent = '✓'; }
+    else { sb.className = 'tab-badge not-connected'; sb.textContent = 'connect'; }
+  }
+}
+
+function connectSlack() {
+  const scopes = "channels:history,channels:read,groups:history,groups:read,im:history,im:read,mpim:history,mpim:read,reactions:read,users:read";
+  const url = `https://slack.com/oauth/v2/authorize?client_id=${SLACK_CLIENT_ID}&user_scope=${scopes}&redirect_uri=${encodeURIComponent(SLACK_REDIRECT)}`;
+  window.location.href = url;
+}
+
+// ════════════════════════════════════════════════
 // AUTH
 // ════════════════════════════════════════════════
 async function init() {
+  // Check for Slack OAuth callback in hash
+  handleSlackHash();
+
   await msalInstance.initialize();
   const accounts = msalInstance.getAllAccounts();
   if (accounts.length > 0) {
     msalInstance.setActiveAccount(accounts[0]);
+    AUTH_STATE.microsoft = true;
     showScreen("loading-screen");
     setLoading("Loading your data…", "", 5);
     await fetchAndRender();
+  } else if (AUTH_STATE.slack) {
+    // Only Slack connected — go to dashboard with Slack tab
+    showScreen("dashboard");
+    updateAuthBadges();
+    showSlackCharts();
+    showTab("slack");
+    await fetchSlackAndRender();
   } else {
     showScreen("login-screen");
   }
+}
+
+function handleSlackHash() {
+  const hash = window.location.hash.slice(1);
+  if (!hash) return;
+  const params = new URLSearchParams(hash);
+
+  if (params.has("slack_token")) {
+    SLACK_TOKEN = params.get("slack_token");
+    SLACK_DATA.myUserId = params.get("slack_user_id") || null;
+    AUTH_STATE.slack = true;
+    // Store in sessionStorage for persistence during session
+    sessionStorage.setItem("slack_token", SLACK_TOKEN);
+    sessionStorage.setItem("slack_user_id", SLACK_DATA.myUserId || "");
+    // Clean URL
+    history.replaceState(null, "", window.location.pathname);
+  } else if (params.has("slack_error")) {
+    console.error("Slack OAuth error:", params.get("slack_error"));
+    history.replaceState(null, "", window.location.pathname);
+  }
+
+  // Restore from session storage if available
+  if (!SLACK_TOKEN) {
+    const stored = sessionStorage.getItem("slack_token");
+    if (stored) {
+      SLACK_TOKEN = stored;
+      SLACK_DATA.myUserId = sessionStorage.getItem("slack_user_id") || null;
+      AUTH_STATE.slack = true;
+    }
+  }
+}
+
+function showSlackCharts() {
+  const prompt = document.getElementById("slack-connect-prompt");
+  const charts = document.getElementById("slack-charts");
+  if (prompt) prompt.style.display = "none";
+  if (charts) charts.style.display = "";
+}
+
+function showRelContent() {
+  const prompt = document.getElementById("rel-connect-prompt");
+  const content = document.getElementById("rel-content");
+  if (prompt) prompt.style.display = "none";
+  if (content) content.style.display = "";
 }
 
 async function login() {
@@ -1258,7 +1861,17 @@ async function login() {
 }
 
 async function signOut() {
-  await msalInstance.logoutPopup();
+  if (AUTH_STATE.microsoft) {
+    try { await msalInstance.logoutPopup(); } catch(e) {}
+  }
+  AUTH_STATE = { microsoft: false, slack: false };
+  SLACK_TOKEN = null;
+  SLACK_DATA = { messages: [], channels: [], users: [], myUserId: null };
+  ALL_RECEIVED = [];
+  ALL_SENT = [];
+  REL_CONTACTS = [];
+  sessionStorage.removeItem("slack_token");
+  sessionStorage.removeItem("slack_user_id");
   showScreen("login-screen");
 }
 
@@ -1320,13 +1933,144 @@ async function fetchAndRender() {
 
     const account = msalInstance.getActiveAccount();
     document.getElementById("account-badge").textContent = account?.username || "";
+    AUTH_STATE.microsoft = true;
+    updateAuthBadges();
 
     renderDashboard(ALL_RECEIVED, ALL_SENT);
     showScreen("dashboard");
 
+    // If Slack is also connected, fetch Slack data in background
+    if (AUTH_STATE.slack && SLACK_DATA.messages.length === 0) {
+      showSlackCharts();
+      fetchSlackAndRender();
+    }
+
   } catch (err) {
     showScreen("login-screen");
     showError("Failed to load data: " + err.message);
+  }
+}
+
+// ════════════════════════════════════════════════
+// SLACK DATA PIPELINE
+// ════════════════════════════════════════════════
+async function slackAPI(method, params = {}) {
+  const url = new URL(`https://slack.com/api/${method}`);
+  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  let retries = 0;
+  while (retries < 4) {
+    const resp = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${SLACK_TOKEN}` }
+    });
+    if (resp.status === 429) {
+      const wait = parseInt(resp.headers.get("Retry-After") || "5", 10);
+      await new Promise(r => setTimeout(r, (wait + 1) * 1000));
+      retries++;
+      continue;
+    }
+    const data = await resp.json();
+    if (!data.ok) throw new Error(`Slack API ${method}: ${data.error}`);
+    return data;
+  }
+  throw new Error(`Slack API ${method}: rate limited after retries`);
+}
+
+async function fetchSlackUsers() {
+  const data = await slackAPI("users.list");
+  return (data.members || []).filter(u => !u.is_bot && !u.deleted && u.id !== "USLACKBOT");
+}
+
+async function fetchSlackConversations() {
+  const all = [];
+  let cursor = "";
+  do {
+    const params = { types: "public_channel,private_channel,mpim,im", limit: "200" };
+    if (cursor) params.cursor = cursor;
+    const data = await slackAPI("conversations.list", params);
+    all.push(...(data.channels || []));
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return all;
+}
+
+async function fetchSlackHistory(channelId, oldest) {
+  const all = [];
+  let cursor = "";
+  do {
+    const params = { channel: channelId, limit: "200", oldest: String(oldest) };
+    if (cursor) params.cursor = cursor;
+    const data = await slackAPI("conversations.history", params);
+    all.push(...(data.messages || []));
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return all;
+}
+
+async function fetchSlackAndRender() {
+  try {
+    setLoading("Fetching Slack users…", "", 10);
+    showScreen("loading-screen");
+    const users = await fetchSlackUsers();
+    const userMap = {};
+    users.forEach(u => { userMap[u.id] = u.real_name || u.name; });
+    SLACK_DATA.users = users;
+
+    setLoading("Fetching Slack channels…", "", 20);
+    const convos = await fetchSlackConversations();
+    SLACK_DATA.channels = convos;
+
+    const cutoff = Math.floor(Date.now() / 1000) - (MONTHS_BACK || 12) * 30.44 * 86400;
+    const messages = [];
+    let done = 0;
+
+    for (const ch of convos) {
+      try {
+        const msgs = await fetchSlackHistory(ch.id, cutoff);
+        msgs.forEach(m => {
+          messages.push({
+            ts: parseFloat(m.ts),
+            userId: m.user || m.bot_id || "",
+            userName: userMap[m.user] || m.username || "bot",
+            channelId: ch.id,
+            channelName: ch.name || (ch.is_im ? `DM: ${userMap[ch.user] || ch.user}` : "group"),
+            channelType: ch.is_im ? "dm" : ch.is_mpim ? "group" : ch.is_private ? "private" : "public",
+            text: m.text || "",
+            reactions: m.reactions || [],
+            threadTs: m.thread_ts || null,
+            replyCount: m.reply_count || 0,
+            isReply: !!(m.thread_ts && m.thread_ts !== m.ts),
+          });
+        });
+      } catch (e) {
+        // Skip channels we can't access (not_in_channel etc)
+        console.warn(`Skipping ${ch.name || ch.id}: ${e.message}`);
+      }
+      done++;
+      setLoading("Fetching Slack messages…", `${done}/${convos.length} channels`, 20 + (done / convos.length) * 60);
+    }
+
+    SLACK_DATA.messages = messages;
+    setLoading("Building Slack charts…", "", 90);
+    await new Promise(r => setTimeout(r, 200));
+
+    showScreen("dashboard");
+    showSlackCharts();
+    updateAuthBadges();
+    renderSlackDashboard();
+
+    // If both connected, build relationships
+    if (AUTH_STATE.microsoft && ALL_RECEIVED.length > 0) {
+      buildAndRenderRelationships();
+    }
+  } catch (err) {
+    console.error("Slack fetch error:", err);
+    showScreen("dashboard");
+    // Show error in Slack tab
+    const prompt = document.getElementById("slack-connect-prompt");
+    if (prompt) {
+      prompt.innerHTML = `<div class="connect-prompt-icon">⚠️</div><h2>Slack Error</h2><p>${err.message}</p><button class="btn-slack" onclick="connectSlack()"><svg viewBox="0 0 24 24" fill="currentColor" style="width:18px;height:18px"><path d="M5.042 15.165a2.528 2.528 0 0 1-2.52 2.523A2.528 2.528 0 0 1 0 15.165a2.527 2.527 0 0 1 2.522-2.52h2.52v2.52z"/></svg> Reconnect Slack</button>`;
+      prompt.style.display = "";
+    }
   }
 }
 
@@ -2649,6 +3393,428 @@ function renderTopRecipientsOverTime(received, sent) {
       }
     }
   });
+}
+
+// ════════════════════════════════════════════════
+// SLACK RENDERERS
+// ════════════════════════════════════════════════
+const slackChartInstances = [];
+
+function destroySlackCharts() {
+  slackChartInstances.forEach(c => c.destroy());
+  slackChartInstances.length = 0;
+}
+
+function slackChart(canvasId, config) {
+  const c = new Chart(document.getElementById(canvasId), config);
+  slackChartInstances.push(c);
+  return c;
+}
+
+function renderSlackDashboard() {
+  destroySlackCharts();
+  const msgs = SLACK_DATA.messages;
+  const myId = SLACK_DATA.myUserId;
+  const sent = msgs.filter(m => m.userId === myId);
+  const recv = msgs.filter(m => m.userId !== myId);
+
+  renderSlackStats(msgs, sent, recv);
+  renderSlackVolume(msgs, sent, recv);
+  renderSlackChannels(msgs);
+  renderSlackDMContacts(msgs, myId);
+  renderSlackResponseTimes(msgs, myId);
+  renderSlackReactions(msgs);
+  renderSlackHeatmap(sent);
+  renderSlackRatio(msgs);
+  renderSlackLength(sent);
+}
+
+function renderSlackStats(msgs, sent, recv) {
+  const days = (MONTHS_BACK || 12) * 30.44;
+  const channels = new Set(msgs.map(m => m.channelId));
+  const dmMsgs = msgs.filter(m => m.channelType === "dm");
+  const uniqueDM = new Set(dmMsgs.map(m => m.userId));
+  const cards = [
+    { label: "Total Messages", value: msgs.length.toLocaleString(), sub: `${(msgs.length/days).toFixed(1)}/day` },
+    { label: "Sent", value: sent.length.toLocaleString(), sub: `${(sent.length/days).toFixed(1)}/day` },
+    { label: "Received", value: recv.length.toLocaleString(), sub: `${(recv.length/days).toFixed(1)}/day` },
+    { label: "Active Channels", value: channels.size.toLocaleString(), sub: "channels & DMs" },
+    { label: "DM Contacts", value: uniqueDM.size.toLocaleString(), sub: "people in DMs" },
+    { label: "Reactions Given", value: msgs.reduce((a,m) => a + (m.reactions?.length || 0), 0).toLocaleString(), sub: "emoji reactions" },
+  ];
+  document.getElementById("slack-stats-grid").innerHTML = cards.map(c => `
+    <div class="stat-card">
+      <div class="stat-label">${c.label}</div>
+      <div class="stat-value">${c.value}</div>
+      <div class="stat-sub">${c.sub}</div>
+    </div>
+  `).join("");
+}
+
+function renderSlackVolume(msgs, sent, recv) {
+  function groupByWeekSlack(arr) {
+    const map = {};
+    arr.forEach(m => {
+      const d = new Date(m.ts * 1000);
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const mon = new Date(d); mon.setDate(diff); mon.setHours(0,0,0,0);
+      const k = mon.toISOString().slice(0,10);
+      map[k] = (map[k] || 0) + 1;
+    });
+    return map;
+  }
+  const sentW = groupByWeekSlack(sent);
+  const recvW = groupByWeekSlack(recv);
+  const keys = [...new Set([...Object.keys(sentW), ...Object.keys(recvW)])].sort();
+  const labels = keys.map(k => new Date(k).toLocaleDateString("en", { month: "short", day: "numeric" }));
+  slackChart("c-slack-volume", {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Received", data: keys.map(k => recvW[k]||0), borderColor: REC_COLOR, backgroundColor: REC_COLOR+"18", fill: true, tension: .4, pointRadius: 0, borderWidth: 2 },
+        { label: "Sent", data: keys.map(k => sentW[k]||0), borderColor: SENT_COLOR, backgroundColor: SENT_COLOR+"18", fill: true, tension: .4, pointRadius: 0, borderWidth: 2 },
+      ]
+    },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false }, tooltip: { mode: "index", intersect: false } },
+      scales: { x: { grid: { display: false }, ticks: { maxTicksLimit: 14, font: { size: 11 } } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true } } }
+  });
+}
+
+function renderSlackChannels(msgs) {
+  const counts = {};
+  msgs.forEach(m => { const n = m.channelName; counts[n] = (counts[n]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const palette = ["#5b6af9","#f97066","#22c55e","#f59e0b","#8b5cf6","#ec4899","#06b6d4","#84cc16","#f43f5e","#6366f1"];
+  slackChart("c-slack-channels", {
+    type: "doughnut",
+    data: {
+      labels: sorted.map(s=>s[0]),
+      datasets: [{ data: sorted.map(s=>s[1]), backgroundColor: palette.slice(0, sorted.length), borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "right", labels: { boxWidth: 10, font: { size: 10 } } } } }
+  });
+}
+
+function renderSlackDMContacts(msgs, myId) {
+  const dms = msgs.filter(m => m.channelType === "dm" && m.userId !== myId);
+  const counts = {};
+  dms.forEach(m => { counts[m.userName] = (counts[m.userName]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  slackChart("c-slack-dm-contacts", {
+    type: "bar",
+    data: {
+      labels: sorted.map(s=>s[0]),
+      datasets: [{ data: sorted.map(s=>s[1]), backgroundColor: "#E01E5A", borderRadius: 5 }]
+    },
+    options: { ...BASE_OPTS, indexAxis: "y", plugins: { legend: { display: false } },
+      scales: { x: { grid: { color: GRID_COLOR }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+}
+
+function renderSlackResponseTimes(msgs, myId) {
+  // DM conversations: find pairs of messages
+  const dmMsgs = msgs.filter(m => m.channelType === "dm").sort((a,b)=>a.ts-b.ts);
+  const byChannel = {};
+  dmMsgs.forEach(m => { (byChannel[m.channelId] = byChannel[m.channelId] || []).push(m); });
+
+  const responseTimes = [];
+  Object.values(byChannel).forEach(ch => {
+    for (let i = 1; i < ch.length; i++) {
+      if (ch[i].userId === myId && ch[i-1].userId !== myId) {
+        const mins = (ch[i].ts - ch[i-1].ts) / 60;
+        if (mins > 0 && mins < 1440) responseTimes.push(mins);
+      }
+    }
+  });
+
+  const buckets = ["<5m","5-15m","15-30m","30m-1h","1-2h","2-4h","4h+"];
+  const thresholds = [5,15,30,60,120,240,Infinity];
+  const counts = new Array(7).fill(0);
+  responseTimes.forEach(t => {
+    for (let i = 0; i < thresholds.length; i++) { if (t < thresholds[i]) { counts[i]++; break; } }
+  });
+
+  slackChart("c-slack-response", {
+    type: "bar",
+    data: { labels: buckets, datasets: [{ data: counts, backgroundColor: "#5b6af9cc", borderRadius: 5 }] },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true } } }
+  });
+}
+
+function renderSlackReactions(msgs) {
+  const counts = {};
+  msgs.forEach(m => {
+    (m.reactions || []).forEach(r => { counts[r.name] = (counts[r.name]||0) + (r.count || 1); });
+  });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  slackChart("c-slack-reactions", {
+    type: "bar",
+    data: {
+      labels: sorted.map(s => `:${s[0]}:`),
+      datasets: [{ data: sorted.map(s=>s[1]), backgroundColor: "#f59e0bcc", borderRadius: 4 }]
+    },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false }, ticks: { font: { size: 10 } } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true } } }
+  });
+}
+
+function renderSlackHeatmap(sent) {
+  // Day of week × hour — rendered as a bubble chart
+  const grid = Array.from({length:7}, () => new Array(24).fill(0));
+  sent.forEach(m => {
+    const d = new Date(m.ts * 1000);
+    grid[d.getDay()][d.getHours()]++;
+  });
+  const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const hourLabels = Array.from({length:24}, (_,i) => i===0?"12a":i<12?`${i}a`:i===12?"12p":`${i-12}p`);
+  const data = [];
+  const maxVal = Math.max(1, ...grid.flat());
+  for (let d = 0; d < 7; d++) {
+    for (let h = 0; h < 24; h++) {
+      if (grid[d][h] > 0) {
+        data.push({ x: h, y: d, r: Math.max(2, (grid[d][h] / maxVal) * 14), v: grid[d][h] });
+      }
+    }
+  }
+  slackChart("c-slack-heatmap", {
+    type: "bubble",
+    data: { datasets: [{ data, backgroundColor: "#5b6af966", borderColor: "#5b6af9", borderWidth: 1 }] },
+    options: {
+      ...BASE_OPTS,
+      plugins: { legend: { display: false }, tooltip: {
+        callbacks: { label: ctx => `${dayLabels[ctx.raw.y]} ${hourLabels[ctx.raw.x]}: ${ctx.raw.v} messages` }
+      }},
+      scales: {
+        x: { type: "linear", min: -0.5, max: 23.5, ticks: { callback: v => hourLabels[v] || "", stepSize: 3, font: { size: 10 } }, grid: { display: false } },
+        y: { type: "linear", min: -0.5, max: 6.5, ticks: { callback: v => dayLabels[v] || "", stepSize: 1, font: { size: 10 } }, grid: { color: GRID_COLOR }, reverse: false }
+      }
+    }
+  });
+}
+
+function renderSlackRatio(msgs) {
+  const types = { dm: 0, group: 0, public: 0, private: 0 };
+  msgs.forEach(m => { types[m.channelType] = (types[m.channelType]||0)+1; });
+  slackChart("c-slack-ratio", {
+    type: "doughnut",
+    data: {
+      labels: ["DMs", "Group DMs", "Public Channels", "Private Channels"],
+      datasets: [{ data: [types.dm, types.group, types.public, types.private],
+        backgroundColor: ["#E01E5A","#ECB22E","#36C5F0","#2EB67D"], borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "right", labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}
+
+function renderSlackLength(sent) {
+  const byMonth = {};
+  sent.forEach(m => {
+    const d = new Date(m.ts * 1000);
+    const k = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`;
+    if (!byMonth[k]) byMonth[k] = [];
+    byMonth[k].push((m.text || "").split(/\s+/).filter(Boolean).length);
+  });
+  const keys = Object.keys(byMonth).sort();
+  const labels = keys.map(k => { const [y,m] = k.split("-"); return new Date(y, m-1).toLocaleDateString("en",{month:"short",year:"2-digit"}); });
+  const data = keys.map(k => { const arr = byMonth[k]; return arr.length ? (arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(1) : 0; });
+  slackChart("c-slack-length", {
+    type: "line",
+    data: { labels, datasets: [{ label: "Avg words", data, borderColor: "#8b5cf6", backgroundColor: "#8b5cf618", fill: true, tension: .4, pointRadius: 3, borderWidth: 2 }] },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true } } }
+  });
+}
+
+// ════════════════════════════════════════════════
+// RELATIONSHIPS — CONTACT BRIDGE & RENDERERS
+// ════════════════════════════════════════════════
+const relChartInstances = [];
+function destroyRelCharts() { relChartInstances.forEach(c=>c.destroy()); relChartInstances.length = 0; }
+function relChart(id, cfg) { const c = new Chart(document.getElementById(id), cfg); relChartInstances.push(c); return c; }
+
+function buildContactBridge() {
+  // Build email contacts map
+  const emailContacts = {};
+  ALL_RECEIVED.forEach(m => {
+    const addr = m.from?.emailAddress?.address?.toLowerCase();
+    const name = m.from?.emailAddress?.name || "";
+    if (addr) {
+      if (!emailContacts[addr]) emailContacts[addr] = { name, address: addr, count: 0 };
+      emailContacts[addr].count++;
+    }
+  });
+  ALL_SENT.forEach(m => {
+    (m.toRecipients || []).forEach(r => {
+      const addr = r.emailAddress?.address?.toLowerCase();
+      const name = r.emailAddress?.name || "";
+      if (addr) {
+        if (!emailContacts[addr]) emailContacts[addr] = { name, address: addr, count: 0 };
+        emailContacts[addr].count++;
+      }
+    });
+  });
+
+  // Build Slack user map
+  const slackUsers = {};
+  SLACK_DATA.users.forEach(u => {
+    const name = (u.real_name || u.name || "").toLowerCase().trim();
+    slackUsers[u.id] = { name: u.real_name || u.name, nameLower: name, email: (u.profile?.email || "").toLowerCase(), id: u.id };
+  });
+
+  // Count Slack messages per user
+  const slackCounts = {};
+  SLACK_DATA.messages.forEach(m => {
+    if (m.channelType === "dm") {
+      slackCounts[m.userId] = (slackCounts[m.userId] || 0) + 1;
+    }
+  });
+
+  // Match: email → slack by (1) email match, (2) name match
+  const contacts = [];
+  const matchedSlackIds = new Set();
+
+  Object.values(emailContacts).forEach(ec => {
+    let slackMatch = null;
+
+    // Try email match
+    for (const su of Object.values(slackUsers)) {
+      if (su.email && su.email === ec.address) { slackMatch = su; break; }
+    }
+
+    // Try name match
+    if (!slackMatch) {
+      const ecName = ec.name.toLowerCase().trim();
+      const ecParts = ecName.split(/\s+/);
+      for (const su of Object.values(slackUsers)) {
+        if (matchedSlackIds.has(su.id)) continue;
+        const suParts = su.nameLower.split(/\s+/);
+        if (ecParts.length >= 2 && suParts.length >= 2 && ecParts[0] === suParts[0] && ecParts[ecParts.length-1] === suParts[suParts.length-1]) {
+          slackMatch = su;
+          break;
+        }
+      }
+    }
+
+    if (slackMatch) matchedSlackIds.add(slackMatch.id);
+
+    contacts.push({
+      name: ec.name || ec.address.split("@")[0],
+      emailAddress: ec.address,
+      slackUserId: slackMatch?.id || null,
+      slackName: slackMatch?.name || null,
+      emailCount: ec.count,
+      slackCount: slackMatch ? (slackCounts[slackMatch.id] || 0) : 0,
+      channels: slackMatch ? "both" : "email-only",
+    });
+  });
+
+  // Add Slack-only contacts
+  Object.values(slackUsers).forEach(su => {
+    if (!matchedSlackIds.has(su.id) && (slackCounts[su.id] || 0) > 0) {
+      contacts.push({
+        name: su.name,
+        emailAddress: null,
+        slackUserId: su.id,
+        slackName: su.name,
+        emailCount: 0,
+        slackCount: slackCounts[su.id] || 0,
+        channels: "slack-only",
+      });
+    }
+  });
+
+  return contacts.sort((a,b) => (b.emailCount + b.slackCount) - (a.emailCount + a.slackCount));
+}
+
+function buildAndRenderRelationships() {
+  REL_CONTACTS = buildContactBridge();
+  showRelContent();
+  destroyRelCharts();
+  renderRelPreference();
+  renderRelEngagement();
+  renderRelCards();
+}
+
+function renderRelPreference() {
+  const both = REL_CONTACTS.filter(c => c.channels === "both").length;
+  const emailOnly = REL_CONTACTS.filter(c => c.channels === "email-only").length;
+  const slackOnly = REL_CONTACTS.filter(c => c.channels === "slack-only").length;
+  relChart("c-rel-preference", {
+    type: "doughnut",
+    data: {
+      labels: ["Both channels", "Email only", "Slack only"],
+      datasets: [{ data: [both, emailOnly, slackOnly], backgroundColor: ["#8b5cf6","#5b6af9","#E01E5A"], borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}
+
+function renderRelEngagement() {
+  // Top 15 contacts, stacked bar: email vs slack
+  const top = REL_CONTACTS.slice(0, 15);
+  relChart("c-rel-engagement", {
+    type: "bar",
+    data: {
+      labels: top.map(c => c.name.split(" ")[0]),
+      datasets: [
+        { label: "Email", data: top.map(c => c.emailCount), backgroundColor: "#5b6af9cc", borderRadius: 3 },
+        { label: "Slack", data: top.map(c => c.slackCount), backgroundColor: "#E01E5Acc", borderRadius: 3 }
+      ]
+    },
+    options: { ...BASE_OPTS, indexAxis: "y", plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: { x: { stacked: true, grid: { color: GRID_COLOR }, beginAtZero: true }, y: { stacked: true, grid: { display: false } } } }
+  });
+}
+
+function renderRelCards() {
+  const sort = document.getElementById("rel-sort")?.value || "total";
+  const filter = document.getElementById("rel-filter")?.value || "all";
+
+  let filtered = [...REL_CONTACTS];
+  if (filter === "both") filtered = filtered.filter(c => c.channels === "both");
+  else if (filter === "email-only") filtered = filtered.filter(c => c.channels === "email-only");
+  else if (filter === "slack-only") filtered = filtered.filter(c => c.channels === "slack-only");
+
+  if (sort === "total") filtered.sort((a,b) => (b.emailCount+b.slackCount) - (a.emailCount+a.slackCount));
+  else if (sort === "recent") filtered.sort((a,b) => (b.emailCount+b.slackCount) - (a.emailCount+a.slackCount)); // simplified
+  else if (sort === "response") filtered.sort((a,b) => (b.emailCount+b.slackCount) - (a.emailCount+a.slackCount));
+
+  const grid = document.getElementById("rel-cards-grid");
+  if (!grid) return;
+
+  grid.innerHTML = filtered.slice(0, 50).map(c => {
+    const total = c.emailCount + c.slackCount;
+    const emailPct = total > 0 ? Math.round(c.emailCount / total * 100) : 0;
+    const slackPct = 100 - emailPct;
+    const initials = c.name.split(" ").map(p => p[0]).join("").toUpperCase().slice(0,2);
+    const channelLabel = c.channels === "both" ? "📧 + 💬" : c.channels === "email-only" ? "📧 only" : "💬 only";
+    return `
+      <div class="rel-card">
+        <div class="rel-card-header">
+          <div class="rel-avatar">${initials}</div>
+          <div>
+            <div class="rel-name">${c.name}</div>
+            <div class="rel-email">${c.emailAddress || c.slackName || ""} · ${channelLabel}</div>
+          </div>
+        </div>
+        ${c.channels === "both" ? `
+        <div class="rel-channel-bar">
+          <div class="email-part" style="width:${emailPct}%"></div>
+          <div class="slack-part" style="width:${slackPct}%"></div>
+        </div>
+        <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted)">
+          <span>📧 ${emailPct}%</span><span>💬 ${slackPct}%</span>
+        </div>` : ""}
+        <div class="rel-stats">
+          <div class="rel-stat"><div class="rel-stat-value">${total}</div><div class="rel-stat-label">Total</div></div>
+          <div class="rel-stat"><div class="rel-stat-value">${c.emailCount}</div><div class="rel-stat-label">Emails</div></div>
+          <div class="rel-stat"><div class="rel-stat-value">${c.slackCount}</div><div class="rel-stat-label">Slack</div></div>
+        </div>
+      </div>`;
+  }).join("");
 }
 
 // ════════════════════════════════════════════════
