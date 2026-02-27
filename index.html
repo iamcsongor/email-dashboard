@@ -528,9 +528,68 @@
   .drill-table .att-yes { color: var(--primary); font-weight: 600; }
   .drill-table .att-no  { color: #d1d5db; }
 
+  /* ── Section dividers ───────────────────────── */
+  .section-divider {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin: 10px 0 4px;
+  }
+  .section-divider::before,
+  .section-divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+  .section-label-inline {
+    font-size: .72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    white-space: nowrap;
+    padding: 0 4px;
+  }
+
+  /* ── Engagement banner ──────────────────────── */
+  .engagement-stat-banner {
+    display: flex;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 18px;
+  }
+  .eng-pill {
+    background: var(--bg);
+    border-radius: 12px;
+    padding: 10px 18px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 80px;
+  }
+  .eng-pill-value {
+    font-size: 1.5rem;
+    font-weight: 800;
+    line-height: 1.1;
+    color: var(--primary);
+  }
+  .eng-pill-label {
+    font-size: .7rem;
+    color: var(--muted);
+    text-align: center;
+  }
+
+  /* ── Asymmetric 2-column grid (1/3 + 2/3) ── */
+  .charts-grid-2-3 {
+    grid-template-columns: 1fr 2fr;
+  }
+
   @media (max-width: 800px) {
     main { padding: 16px; }
     .charts-grid { grid-template-columns: 1fr; }
+    .charts-grid-2-3 { grid-template-columns: 1fr; }
     .chart-card.full { grid-column: 1; }
     .drill-panel { max-width: 100%; }
     .login-card { width: 92vw; padding: 36px 24px 28px; }
@@ -721,6 +780,97 @@
       <div class="chart-subtitle">Monthly count of messages with file attachments · click to drill in</div>
       <div class="chart-wrap" style="height:200px"><canvas id="c-attachments"></canvas></div>
     </div>
+
+    <!-- ── ENGAGEMENT ─────────────────────────── -->
+    <div class="section-divider">
+      <span class="section-label-inline">Engagement Analytics</span>
+    </div>
+
+    <!-- Engagement score stat + chart -->
+    <div class="chart-card full">
+      <div class="chart-title">Engagement Score Over Time</div>
+      <div class="chart-subtitle">Composite monthly score: reply rate · response speed · email initiation · network breadth</div>
+      <div id="engagement-stat" class="engagement-stat-banner"></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="c-engagement"></canvas></div>
+    </div>
+
+    <!-- Task classification: doughnut + trend -->
+    <div class="charts-grid charts-grid-2-3">
+      <div class="chart-card">
+        <div class="chart-title">Task Classification</div>
+        <div class="chart-subtitle">Subject-line keyword categories · click a segment</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="c-tasks"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Category Trend Over Time</div>
+        <div class="chart-subtitle">Monthly stacked breakdown · click a column</div>
+        <div class="chart-wrap" style="height:260px"><canvas id="c-task-trend"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── THREAD ANALYTICS ───────────────────── -->
+    <div class="section-divider">
+      <span class="section-label-inline">Thread Analytics</span>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Thread Depth Distribution</div>
+        <div class="chart-subtitle">How many messages per conversation</div>
+        <div class="chart-wrap" style="height:220px"><canvas id="c-thread-depth"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Participants per Thread</div>
+        <div class="chart-subtitle">Group size distribution across conversations</div>
+        <div class="chart-wrap" style="height:220px"><canvas id="c-participants"></canvas></div>
+      </div>
+    </div>
+
+    <!-- ── TRENDS ─────────────────────────────── -->
+    <div class="section-divider">
+      <span class="section-label-inline">Volume &amp; Trend</span>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card">
+        <div class="chart-title">Average Email Length</div>
+        <div class="chart-subtitle">Estimated word count per message (sent vs received)</div>
+        <div class="chart-wrap" style="height:210px"><canvas id="c-email-length"></canvas></div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--received)"></div>Received</div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--sent)"></div>Sent</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="chart-title">Unique Stakeholders per Month</div>
+        <div class="chart-subtitle">Distinct people in your inbox each month</div>
+        <div class="chart-wrap" style="height:210px"><canvas id="c-stakeholders"></canvas></div>
+      </div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-title">Monthly Average Response Time</div>
+      <div class="chart-subtitle">How quickly you replied to emails each month (hours)</div>
+      <div class="chart-wrap" style="height:200px"><canvas id="c-response-trend"></canvas></div>
+    </div>
+
+    <!-- ── CONTACT TRENDS ──────────────────────── -->
+    <div class="section-divider">
+      <span class="section-label-inline">Contact Trends</span>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-title">Top Senders Over Time</div>
+      <div class="chart-subtitle">Monthly email volume from your most frequent senders · click a name to drill in</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="c-senders-trend"></canvas></div>
+    </div>
+
+    <div class="chart-card full">
+      <div class="chart-title">Top Recipients Over Time</div>
+      <div class="chart-subtitle">Monthly email volume to your most frequent recipients · click a name to drill in</div>
+      <div class="chart-wrap" style="height:240px"><canvas id="c-recipients-trend"></canvas></div>
+    </div>
+
   </main>
 </div><!-- /dashboard -->
 
@@ -883,8 +1033,8 @@ async function fetchAndRender() {
   }
   const sinceISO = since.toISOString();
 
-  const recFields  = "id,receivedDateTime,from,toRecipients,subject,conversationId,isRead,hasAttachments";
-  const sentFields = "id,sentDateTime,from,toRecipients,subject,conversationId,hasAttachments";
+  const recFields  = "id,receivedDateTime,from,toRecipients,ccRecipients,subject,conversationId,isRead,hasAttachments,bodyPreview";
+  const sentFields = "id,sentDateTime,from,toRecipients,ccRecipients,subject,conversationId,hasAttachments,bodyPreview";
 
   const recUrl  = `${GRAPH}/me/mailFolders/inbox/messages?$select=${recFields}&$filter=${encodeURIComponent("receivedDateTime ge " + sinceISO)}&$top=100`;
   const sentUrl = `${GRAPH}/me/mailFolders/sentitems/messages?$select=${sentFields}&$filter=${encodeURIComponent("sentDateTime ge " + sinceISO)}&$top=100`;
@@ -1168,6 +1318,17 @@ function renderDashboard(received, sent) {
   renderResponseTimes(received, sent);
   renderReadRate(received);
   renderAttachments(received, sent);
+  // ── Engagement analytics ──
+  renderEngagementScore(received, sent);
+  renderTaskClassification(received, sent);
+  renderTaskTrend(received, sent);
+  renderThreadDepth(received, sent);
+  renderParticipantDist(received, sent);
+  renderEmailLength(received, sent);
+  renderStakeholders(received, sent);
+  renderResponseTrend(received, sent);
+  renderTopSendersOverTime(received, sent);
+  renderTopRecipientsOverTime(received, sent);
 }
 
 // ── Stat cards (clickable) ──────────────────────
@@ -1518,6 +1679,707 @@ function renderAttachments(received, sent) {
       },
       scales: {
         x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ════════════════════════════════════════════════
+// TASK CLASSIFICATION — keyword scoring
+// ════════════════════════════════════════════════
+const TASK_CATEGORIES = {
+  "Sales":         ["sales","proposal","deal","client","prospect","pipeline","revenue","pricing","quote","offer","opportunity","customer","demo","pitch","crm","lead","account","contract renewal","upsell","cross-sell"],
+  "Fundraising":   ["fundrais","investor","round","series a","series b","term sheet","cap table","vc","venture","valuation","due diligence","raise capital","investment","angel","spv","convertible","safe note"],
+  "Hiring":        ["interview","candidate","hiring","recruit","offer letter","onboard","job","position","cv","resume","applicant","talent","headcount","role","hc "],
+  "Finance":       ["invoice","payment","budget","expense","receipt","accounting","payroll","tax","reimburs","purchase order","p&l","cashflow","forecast","runway","burn"],
+  "Legal":         ["contract","agreement","legal","compliance","nda","terms","gdpr","policy","liability","clause","ip ","trademark","copyright","litigation","dispute"],
+  "1:1 / Sync":    ["1:1","one on one","one-on-one","catch up","catch-up","check-in","check in","weekly sync","standup","stand-up","bi-weekly","monthly review","feedback","skip"],
+  "Internal":      ["all hands","all-hands","company update","announcement","team meeting","office","holiday","ooo","out of office","internal","company wide","company-wide"],
+};
+
+function classifySubject(subject) {
+  const s = (subject || "").toLowerCase();
+  // Score each category
+  for (const [cat, keywords] of Object.entries(TASK_CATEGORIES)) {
+    if (keywords.some(k => s.includes(k))) return cat;
+  }
+  return "Project / Other";
+}
+
+function calcTaskDistribution(received, sent) {
+  const map = {};
+  const allEmails = [
+    ...received.map(m => ({ subject: m.subject, msg: m, type: "received" })),
+    ...sent.map(m => ({ subject: m.subject, msg: m, type: "sent" }))
+  ];
+  allEmails.forEach(({ subject, msg, type }) => {
+    const cat = classifySubject(subject);
+    if (!map[cat]) map[cat] = { count: 0, received: [], sent: [] };
+    map[cat].count++;
+    map[cat][type].push(msg);
+  });
+  return map;
+}
+
+function calcMonthlyTaskTrend(received, sent) {
+  // Returns { month -> { category -> count } }
+  const months = {};
+  const addMsg = (m, dateField) => {
+    const mk = monthKey(m[dateField]);
+    if (!months[mk]) months[mk] = {};
+    const cat = classifySubject(m.subject);
+    months[mk][cat] = (months[mk][cat] || 0) + 1;
+  };
+  received.forEach(m => addMsg(m, "receivedDateTime"));
+  sent.forEach(m => addMsg(m, "sentDateTime"));
+  return months;
+}
+
+// ════════════════════════════════════════════════
+// THREAD ANALYTICS — group by conversationId
+// ════════════════════════════════════════════════
+function buildThreadMap(received, sent) {
+  // Returns map of conversationId -> { messages[], participants Set, firstDate, lastDate }
+  const threads = {};
+  const addToThread = (m, dateField) => {
+    const id = m.conversationId;
+    if (!id) return;
+    if (!threads[id]) threads[id] = { messages: [], participants: new Set(), firstDate: null, lastDate: null };
+    threads[id].messages.push(m);
+    const t = new Date(m[dateField]).getTime();
+    if (!threads[id].firstDate || t < threads[id].firstDate) threads[id].firstDate = t;
+    if (!threads[id].lastDate  || t > threads[id].lastDate)  threads[id].lastDate  = t;
+    // collect participants
+    const from = m.from?.emailAddress?.address;
+    if (from) threads[id].participants.add(from);
+    (m.toRecipients || []).forEach(r => { const a = r.emailAddress?.address; if (a) threads[id].participants.add(a); });
+    (m.ccRecipients || []).forEach(r => { const a = r.emailAddress?.address; if (a) threads[id].participants.add(a); });
+  };
+  received.forEach(m => addToThread(m, "receivedDateTime"));
+  sent.forEach(m => addToThread(m, "sentDateTime"));
+  return threads;
+}
+
+function calcThreadStats(received, sent) {
+  const threads = buildThreadMap(received, sent);
+  const depths = Object.values(threads).map(t => t.messages.length);
+  const participants = Object.values(threads).map(t => t.participants.size);
+  const durations = Object.values(threads)
+    .filter(t => t.firstDate && t.lastDate && t.lastDate > t.firstDate)
+    .map(t => (t.lastDate - t.firstDate) / (1000 * 60 * 60 * 24)); // days
+
+  const threadCount = depths.length;
+  const avgDepth = threadCount ? (depths.reduce((a, b) => a + b, 0) / threadCount).toFixed(1) : 0;
+  const avgParticipants = threadCount ? (participants.reduce((a, b) => a + b, 0) / threadCount).toFixed(1) : 0;
+
+  // depth distribution buckets
+  const depthBuckets = { "1 msg": 0, "2–3": 0, "4–7": 0, "8–15": 0, "16+": 0 };
+  depths.forEach(d => {
+    if      (d === 1)  depthBuckets["1 msg"]++;
+    else if (d <= 3)   depthBuckets["2–3"]++;
+    else if (d <= 7)   depthBuckets["4–7"]++;
+    else if (d <= 15)  depthBuckets["8–15"]++;
+    else               depthBuckets["16+"]++;
+  });
+
+  // participant distribution buckets
+  const partBuckets = { "1:1": 0, "3–5": 0, "6–10": 0, "11–20": 0, "20+": 0 };
+  participants.forEach(p => {
+    if      (p <= 2)  partBuckets["1:1"]++;
+    else if (p <= 5)  partBuckets["3–5"]++;
+    else if (p <= 10) partBuckets["6–10"]++;
+    else if (p <= 20) partBuckets["11–20"]++;
+    else              partBuckets["20+"]++;
+  });
+
+  return { threadCount, avgDepth, avgParticipants, depthBuckets, partBuckets };
+}
+
+// ════════════════════════════════════════════════
+// EMAIL LENGTH — word count from bodyPreview
+// ════════════════════════════════════════════════
+function estimateWordCount(bodyPreview) {
+  if (!bodyPreview) return 0;
+  return bodyPreview.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
+
+function calcMonthlyEmailLength(received, sent) {
+  // avg estimated word count per month, sent vs received
+  const recMap = {}, sentMap = {};
+  received.forEach(m => {
+    const k = monthKey(m.receivedDateTime);
+    if (!recMap[k]) recMap[k] = [];
+    recMap[k].push(estimateWordCount(m.bodyPreview));
+  });
+  sent.forEach(m => {
+    const k = monthKey(m.sentDateTime);
+    if (!sentMap[k]) sentMap[k] = [];
+    sentMap[k].push(estimateWordCount(m.bodyPreview));
+  });
+  const allKeys = [...new Set([...Object.keys(recMap), ...Object.keys(sentMap)])].sort();
+  const avg = arr => arr.length ? Math.round(arr.reduce((a, b) => a + b, 0) / arr.length) : 0;
+  return {
+    labels: allKeys.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" })),
+    recAvg: allKeys.map(k => avg(recMap[k] || [])),
+    sentAvg: allKeys.map(k => avg(sentMap[k] || []))
+  };
+}
+
+// ════════════════════════════════════════════════
+// STAKEHOLDER VARIETY — unique contacts per month
+// ════════════════════════════════════════════════
+function calcMonthlyStakeholders(received, sent) {
+  const map = {};
+  received.forEach(m => {
+    const k = monthKey(m.receivedDateTime);
+    if (!map[k]) map[k] = new Set();
+    const addr = m.from?.emailAddress?.address;
+    if (addr) map[k].add(addr);
+  });
+  sent.forEach(m => {
+    const k = monthKey(m.sentDateTime);
+    if (!map[k]) map[k] = new Set();
+    (m.toRecipients || []).forEach(r => { const a = r.emailAddress?.address; if (a) map[k].add(a); });
+    (m.ccRecipients || []).forEach(r => { const a = r.emailAddress?.address; if (a) map[k].add(a); });
+  });
+  const keys = Object.keys(map).sort();
+  return {
+    labels: keys.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" })),
+    counts: keys.map(k => map[k].size)
+  };
+}
+
+// ════════════════════════════════════════════════
+// TOP CONTACTS OVER TIME
+// ════════════════════════════════════════════════
+function calcTopContactsOverTime(received, sent, n = 5) {
+  // For each month, who are top n senders and recipients?
+  const recByMonth = {}, sentByMonth = {};
+  received.forEach(m => {
+    const k = monthKey(m.receivedDateTime);
+    const addr = m.from?.emailAddress?.address;
+    if (!addr) return;
+    if (!recByMonth[k]) recByMonth[k] = {};
+    recByMonth[k][addr] = (recByMonth[k][addr] || 0) + 1;
+  });
+  sent.forEach(m => {
+    const k = monthKey(m.sentDateTime);
+    (m.toRecipients || []).forEach(r => {
+      const addr = r.emailAddress?.address;
+      if (!addr) return;
+      if (!sentByMonth[k]) sentByMonth[k] = {};
+      sentByMonth[k][addr] = (sentByMonth[k][addr] || 0) + 1;
+    });
+  });
+  const months = [...new Set([...Object.keys(recByMonth), ...Object.keys(sentByMonth)])].sort();
+
+  // Build top-n senders per month as stacked data
+  const topRecAddrs = Object.keys(
+    received.reduce((acc, m) => {
+      const a = m.from?.emailAddress?.address; if (a) acc[a] = (acc[a] || 0) + 1; return acc;
+    }, {})
+  ).sort((a, b) =>
+    (received.filter(m => m.from?.emailAddress?.address === b).length) -
+    (received.filter(m => m.from?.emailAddress?.address === a).length)
+  ).slice(0, n);
+
+  const topSentAddrs = Object.keys(
+    sent.reduce((acc, m) => {
+      (m.toRecipients || []).forEach(r => { const a = r.emailAddress?.address; if (a) acc[a] = (acc[a] || 0) + 1; }); return acc;
+    }, {})
+  ).sort((a, b) => {
+    const bCount = sent.filter(m => (m.toRecipients||[]).some(r=>r.emailAddress?.address===b)).length;
+    const aCount = sent.filter(m => (m.toRecipients||[]).some(r=>r.emailAddress?.address===a)).length;
+    return bCount - aCount;
+  }).slice(0, n);
+
+  return {
+    months,
+    labels: months.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" })),
+    topRecAddrs,
+    topSentAddrs,
+    recByMonth,
+    sentByMonth
+  };
+}
+
+// ════════════════════════════════════════════════
+// ENGAGEMENT SCORE — monthly composite 0–100
+// ════════════════════════════════════════════════
+function calcEngagementScore(received, sent) {
+  // Per-month score from 4 signals:
+  // 1. Reply rate (% of received convos that got a reply from you)
+  // 2. Response speed (inverse of avg hours to reply, capped at 48h)
+  // 3. Initiation rate (% of sent emails that start a NEW conversation)
+  // 4. Network breadth (unique contacts contacted, normalised)
+
+  const months = [...new Set([
+    ...received.map(m => monthKey(m.receivedDateTime)),
+    ...sent.map(m => monthKey(m.sentDateTime))
+  ])].sort();
+
+  // Build conversation lookup
+  const convRecTimes = {}; // convId -> [timestamps of received]
+  received.forEach(m => {
+    const id = m.conversationId; if (!id) return;
+    if (!convRecTimes[id]) convRecTimes[id] = [];
+    convRecTimes[id].push(new Date(m.receivedDateTime).getTime());
+  });
+
+  const scores = months.map(mk => {
+    const recMonth  = received.filter(m => monthKey(m.receivedDateTime) === mk);
+    const sentMonth = sent.filter(m => monthKey(m.sentDateTime) === mk);
+    if (recMonth.length + sentMonth.length < 5) return null; // not enough data
+
+    // 1. Reply rate
+    const recConvIds = new Set(recMonth.map(m => m.conversationId).filter(Boolean));
+    const repliedConvIds = new Set(
+      sentMonth.filter(m => recConvIds.has(m.conversationId)).map(m => m.conversationId)
+    );
+    const replyRate = recConvIds.size > 0 ? repliedConvIds.size / recConvIds.size : 0;
+
+    // 2. Response speed: avg hours to reply (lower = better)
+    const responseTimes = [];
+    sentMonth.forEach(m => {
+      const prev = convRecTimes[m.conversationId];
+      if (!prev) return;
+      const sentT = new Date(m.sentDateTime).getTime();
+      const lastRec = prev.filter(t => t < sentT).sort((a, b) => b - a)[0];
+      if (!lastRec) return;
+      const hrs = (sentT - lastRec) / 3_600_000;
+      if (hrs <= 48) responseTimes.push(hrs);
+    });
+    const avgHrs = responseTimes.length > 0
+      ? responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length : 24;
+    const speedScore = Math.max(0, 1 - (avgHrs / 48)); // 0h=1.0, 48h=0.0
+
+    // 3. Initiation rate (sent emails whose conv has NO received message)
+    const initiatedConvIds = sentMonth.filter(m =>
+      m.conversationId && !convRecTimes[m.conversationId]
+    ).length;
+    const initiationRate = sentMonth.length > 0 ? initiatedConvIds / sentMonth.length : 0;
+
+    // 4. Network breadth: unique contacts this month (normalised vs max across all months)
+    const contacts = new Set();
+    recMonth.forEach(m => { const a = m.from?.emailAddress?.address; if (a) contacts.add(a); });
+    sentMonth.forEach(m => {
+      (m.toRecipients||[]).forEach(r => { const a = r.emailAddress?.address; if (a) contacts.add(a); });
+    });
+    const breadth = contacts.size; // raw, normalised later
+
+    // weighted composite (breadth normalised after collecting all months)
+    return { mk, replyRate, speedScore, initiationRate, breadth, label:
+      new Date(mk + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" }) };
+  }).filter(Boolean);
+
+  if (scores.length === 0) return [];
+
+  const maxBreadth = Math.max(...scores.map(s => s.breadth), 1);
+  return scores.map(s => {
+    const breadthScore = s.breadth / maxBreadth;
+    const composite = (
+      s.replyRate     * 35 +
+      s.speedScore    * 30 +
+      s.initiationRate * 15 +
+      breadthScore    * 20
+    ); // already 0–100 scale
+    return { mk: s.mk, label: s.label, score: Math.round(composite) };
+  });
+}
+
+// ════════════════════════════════════════════════
+// RESPONSE TIME TREND — rolling monthly avg hours
+// ════════════════════════════════════════════════
+function calcMonthlyResponseTrend(received, sent) {
+  const convRecTimes = {};
+  received.forEach(m => {
+    const id = m.conversationId; if (!id) return;
+    if (!convRecTimes[id]) convRecTimes[id] = [];
+    convRecTimes[id].push(new Date(m.receivedDateTime).getTime());
+  });
+
+  const map = {};
+  sent.forEach(m => {
+    const prev = convRecTimes[m.conversationId];
+    if (!prev) return;
+    const sentT = new Date(m.sentDateTime).getTime();
+    const lastRec = prev.filter(t => t < sentT).sort((a, b) => b - a)[0];
+    if (!lastRec) return;
+    const hrs = (sentT - lastRec) / 3_600_000;
+    if (hrs > 7 * 24) return;
+    const mk = monthKey(m.sentDateTime);
+    if (!map[mk]) map[mk] = [];
+    map[mk].push(hrs);
+  });
+
+  const keys = Object.keys(map).sort();
+  const avg = arr => arr.length ? (arr.reduce((a, b) => a + b, 0) / arr.length).toFixed(1) : null;
+  return {
+    labels: keys.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" })),
+    avgHours: keys.map(k => avg(map[k]))
+  };
+}
+
+// ════════════════════════════════════════════════
+// NEW CHART RENDERERS
+// ════════════════════════════════════════════════
+
+// ── Engagement Score over time ───────────────────
+function renderEngagementScore(received, sent) {
+  const scores = calcEngagementScore(received, sent);
+  if (!scores.length) return;
+
+  new Chart(document.getElementById("c-engagement"), {
+    type: "line",
+    data: {
+      labels: scores.map(s => s.label),
+      datasets: [{
+        label: "Engagement Score",
+        data: scores.map(s => s.score),
+        borderColor: "#22c55e",
+        backgroundColor: "rgba(34,197,94,0.1)",
+        fill: true, tension: 0.4, pointRadius: 4,
+        pointBackgroundColor: "#22c55e", borderWidth: 2
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, max: 100,
+             ticks: { callback: v => v } }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `Score: ${ctx.raw}/100` } }
+      }
+    }
+  });
+
+  // Update stat card
+  const latest = scores[scores.length - 1];
+  const prev   = scores[scores.length - 2];
+  const el = document.getElementById("engagement-stat");
+  if (el && latest) {
+    const trend = prev ? (latest.score > prev.score ? "↑" : latest.score < prev.score ? "↓" : "→") : "";
+    el.innerHTML = `<div class="stat-label">Engagement Score</div>
+      <div class="stat-value" style="color:#22c55e">${latest.score}</div>
+      <div class="stat-sub">${trend} vs last month · out of 100</div>`;
+  }
+}
+
+// ── Task classification donut ────────────────────
+const TASK_COLORS = {
+  "Sales":         "#6366f1",
+  "Fundraising":   "#f59e0b",
+  "Hiring":        "#06b6d4",
+  "Finance":       "#84cc16",
+  "Legal":         "#f97066",
+  "1:1 / Sync":    "#a78bfa",
+  "Internal":      "#94a3b8",
+  "Project / Other": "#5b6af9"
+};
+
+function renderTaskClassification(received, sent) {
+  const dist = calcTaskDistribution(received, sent);
+  const entries = Object.entries(dist).sort((a, b) => b[1].count - a[1].count);
+
+  new Chart(document.getElementById("c-tasks"), {
+    type: "doughnut",
+    data: {
+      labels: entries.map(([k]) => k),
+      datasets: [{
+        data: entries.map(([,v]) => v.count),
+        backgroundColor: entries.map(([k]) => TASK_COLORS[k] || "#94a3b8"),
+        borderWidth: 2,
+        borderColor: "#fff"
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      cutout: "62%",
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const cat = entries[elems[0].index][0];
+        const data = dist[cat];
+        openDrill(`Category: ${cat}`, [
+          ...data.received.map(m => normalizeMsg(m, "received")),
+          ...data.sent.map(m => normalizeMsg(m, "sent"))
+        ]);
+      },
+      plugins: {
+        legend: { display: true, position: "right",
+          labels: { boxWidth: 11, font: { size: 11 }, padding: 10 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const total = entries.reduce((s, [,v]) => s + v.count, 0);
+              const pct = total > 0 ? Math.round(ctx.raw / total * 100) : 0;
+              return ` ${ctx.raw} emails (${pct}%)`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Monthly task trend (stacked bar) ────────────
+function renderTaskTrend(received, sent) {
+  const monthly = calcMonthlyTaskTrend(received, sent);
+  const months = Object.keys(monthly).sort();
+  const cats = Object.keys(TASK_COLORS);
+  const labels = months.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" }));
+
+  new Chart(document.getElementById("c-task-trend"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: cats.map(cat => ({
+        label: cat,
+        data: months.map(mk => monthly[mk]?.[cat] || 0),
+        backgroundColor: (TASK_COLORS[cat] || "#94a3b8") + "cc",
+        borderRadius: 2
+      }))
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const mi = elems[0].index;
+        const di = elems[0].datasetIndex;
+        const mk = months[mi];
+        const cat = cats[di];
+        const dist = calcTaskDistribution(
+          received.filter(m => monthKey(m.receivedDateTime) === mk),
+          sent.filter(m => monthKey(m.sentDateTime) === mk)
+        );
+        const data = dist[cat] || { received: [], sent: [] };
+        openDrill(`${cat} — ${labels[mi]}`, [
+          ...data.received.map(m => normalizeMsg(m, "received")),
+          ...data.sent.map(m => normalizeMsg(m, "sent"))
+        ]);
+      },
+      plugins: {
+        legend: { display: true, labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }
+      },
+      scales: {
+        x: { stacked: true, grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { stacked: true, grid: { color: GRID_COLOR }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// ── Thread depth distribution ────────────────────
+function renderThreadDepth(received, sent) {
+  const { depthBuckets } = calcThreadStats(received, sent);
+  const labels = Object.keys(depthBuckets);
+  const colors = ["#e2e8f0","#a78bfa","#6366f1","#4f46e5","#312e81"];
+
+  new Chart(document.getElementById("c-thread-depth"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{ data: Object.values(depthBuckets), backgroundColor: colors, borderRadius: 5 }]
+    },
+    options: {
+      ...BASE_OPTS,
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ── Participant count distribution ───────────────
+function renderParticipantDist(received, sent) {
+  const { partBuckets } = calcThreadStats(received, sent);
+  const labels = Object.keys(partBuckets);
+  const colors = ["#bbf7d0","#6ee7b7","#34d399","#059669","#065f46"];
+
+  new Chart(document.getElementById("c-participants"), {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [{ data: Object.values(partBuckets), backgroundColor: colors, borderRadius: 5 }]
+    },
+    options: {
+      ...BASE_OPTS,
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ── Email length over time ───────────────────────
+function renderEmailLength(received, sent) {
+  const { labels, recAvg, sentAvg } = calcMonthlyEmailLength(received, sent);
+  new Chart(document.getElementById("c-email-length"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Received (avg words)", data: recAvg, borderColor: REC_COLOR,
+          backgroundColor: REC_COLOR + "15", fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2 },
+        { label: "Sent (avg words)", data: sentAvg, borderColor: SENT_COLOR,
+          backgroundColor: SENT_COLOR + "15", fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2 }
+      ]
+    },
+    options: {
+      ...BASE_OPTS,
+      plugins: {
+        legend: { display: true, labels: { boxWidth: 10, font: { size: 11 } } },
+        tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ~${ctx.raw} words` } }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true,
+             ticks: { callback: v => v + "w" } }
+      }
+    }
+  });
+}
+
+// ── Unique stakeholders per month ────────────────
+function renderStakeholders(received, sent) {
+  const { labels, counts } = calcMonthlyStakeholders(received, sent);
+  new Chart(document.getElementById("c-stakeholders"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Unique contacts",
+        data: counts,
+        borderColor: "#06b6d4",
+        backgroundColor: "rgba(6,182,212,0.1)",
+        fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `${ctx.raw} unique contacts` } }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ── Response time trend (monthly avg hours) ──────
+function renderResponseTrend(received, sent) {
+  const { labels, avgHours } = calcMonthlyResponseTrend(received, sent);
+  new Chart(document.getElementById("c-response-trend"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: [{
+        label: "Avg reply time (hrs)",
+        data: avgHours,
+        borderColor: "#f59e0b",
+        backgroundColor: "rgba(245,158,11,0.1)",
+        fill: true, tension: 0.4, pointRadius: 3, borderWidth: 2
+      }]
+    },
+    options: {
+      ...BASE_OPTS,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => `${ctx.raw}h avg reply time` } }
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true,
+             ticks: { callback: v => v + "h" } }
+      }
+    }
+  });
+}
+
+// ── Top senders over time (line per contact) ─────
+function renderTopSendersOverTime(received, sent) {
+  const { months, labels, topRecAddrs, recByMonth } = calcTopContactsOverTime(received, sent, 5);
+  const palette = ["#6366f1","#f97066","#22c55e","#f59e0b","#06b6d4"];
+
+  new Chart(document.getElementById("c-senders-trend"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: topRecAddrs.map((addr, i) => ({
+        label: addr.split("@")[0],
+        data: months.map(mk => recByMonth[mk]?.[addr] || 0),
+        borderColor: palette[i % palette.length],
+        backgroundColor: "transparent",
+        tension: 0.4, pointRadius: 3, borderWidth: 2
+      }))
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const addr = topRecAddrs[elems[0].datasetIndex];
+        const mi = elems[0].index;
+        const mk = months[mi];
+        const label = labels[mi];
+        drillReceived(
+          m => m.from?.emailAddress?.address === addr && monthKey(m.receivedDateTime) === mk,
+          `From ${addr} — ${label}`
+        );
+      },
+      plugins: {
+        legend: { display: true, labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
+      }
+    }
+  });
+}
+
+// ── Top recipients over time ─────────────────────
+function renderTopRecipientsOverTime(received, sent) {
+  const { months, labels, topSentAddrs, sentByMonth } = calcTopContactsOverTime(received, sent, 5);
+  const palette = ["#f97066","#6366f1","#f59e0b","#22c55e","#a78bfa"];
+
+  new Chart(document.getElementById("c-recipients-trend"), {
+    type: "line",
+    data: {
+      labels,
+      datasets: topSentAddrs.map((addr, i) => ({
+        label: addr.split("@")[0],
+        data: months.map(mk => sentByMonth[mk]?.[addr] || 0),
+        borderColor: palette[i % palette.length],
+        backgroundColor: "transparent",
+        tension: 0.4, pointRadius: 3, borderWidth: 2
+      }))
+    },
+    options: {
+      ...BASE_OPTS,
+      onClick: (evt, elems) => {
+        if (!elems.length) return;
+        const addr = topSentAddrs[elems[0].datasetIndex];
+        const mi = elems[0].index;
+        const mk = months[mi];
+        const label = labels[mi];
+        drillSent(
+          m => (m.toRecipients||[]).some(r => r.emailAddress?.address === addr) && monthKey(m.sentDateTime) === mk,
+          `To ${addr} — ${label}`
+        );
+      },
+      plugins: {
+        legend: { display: true, labels: { boxWidth: 10, font: { size: 10 }, padding: 8 } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { font: { size: 10 } } },
         y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { precision: 0 } }
       }
     }
