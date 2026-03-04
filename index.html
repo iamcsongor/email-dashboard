@@ -790,6 +790,67 @@
     letter-spacing: .04em;
   }
 
+  /* ── Activity tab dark cards ── */
+  .act-dark-row {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px;
+  }
+  .act-dark-card {
+    background: #1a1a2e; border-radius: 14px; padding: 16px 14px; text-align: center;
+    color: #e0e0e0; display: flex; flex-direction: column; gap: 2px;
+  }
+  .act-dark-card .act-label {
+    font-size: .65rem; text-transform: uppercase; letter-spacing: .06em; color: #6ee7b7; font-weight: 600;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .act-dark-card .act-big {
+    font-size: 1.65rem; font-weight: 800; color: #fff; line-height: 1.2; margin: 2px 0;
+  }
+  .act-dark-card .act-unit {
+    font-size: .85rem; font-weight: 400; color: #94a3b8; display: inline;
+  }
+  .act-dark-card .act-prev {
+    font-size: .68rem; color: #64748b;
+  }
+  .act-dark-card .act-delta {
+    font-size: .72rem; font-weight: 700;
+  }
+  .act-delta.up { color: #f97066; }
+  .act-delta.down { color: #6ee7b7; }
+  .act-delta.neutral { color: #94a3b8; }
+  .act-dark-card.weekend { opacity: 0.55; }
+
+  .act-timeline-wrap {
+    background: #1a1a2e; border-radius: 14px; padding: 20px; margin-bottom: 18px;
+  }
+  .act-timeline-labels {
+    display: flex; justify-content: space-between; font-size: .7rem; color: #64748b; margin-bottom: 6px; padding: 0 4px;
+  }
+  .act-timeline-bar {
+    height: 24px; background: #0f172a; border-radius: 12px; position: relative; overflow: hidden;
+  }
+  .act-timeline-seg {
+    position: absolute; top: 0; height: 100%; border-radius: 12px;
+  }
+
+  .act-consistency-row {
+    display: flex; justify-content: space-between; align-items: center;
+    background: #1a1a2e; border-radius: 14px; padding: 18px 22px; margin-bottom: 18px; color: #fff;
+  }
+  .act-consistency-label { font-size: 1.05rem; font-weight: 600; }
+  .act-consistency-badge {
+    font-size: .82rem; font-weight: 700; padding: 5px 14px; border-radius: 20px; background: #22c55e22; color: #6ee7b7;
+  }
+
+  .act-peaks-row {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px;
+  }
+  .act-peak-card {
+    background: #1a1a2e; border-radius: 14px; padding: 16px 12px; text-align: center; color: #e0e0e0;
+  }
+  .act-peak-icon { font-size: 1.3rem; margin-bottom: 4px; }
+  .act-peak-time { font-size: 1.3rem; font-weight: 800; color: #fff; }
+  .act-peak-label { font-size: .65rem; color: #64748b; text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+
   @media (max-width: 800px) {
     main { padding: 16px; }
     .charts-grid { grid-template-columns: 1fr; }
@@ -800,6 +861,8 @@
     .tab-bar { margin: 0 16px; }
     .tab-btn { padding: 8px 10px; font-size: .75rem; }
     .rel-cards-grid { grid-template-columns: 1fr; }
+    .act-dark-row { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); }
+    .act-peaks-row { grid-template-columns: 1fr; }
   }
 </style>
 </head>
@@ -944,6 +1007,9 @@
     <button class="tab-btn" data-tab="calendar" onclick="showTab('calendar')">
       <span class="tab-icon">📅</span> Calendar
       <span class="tab-badge connected" id="badge-calendar" style="display:none">✓</span>
+    </button>
+    <button class="tab-btn" data-tab="activity" onclick="showTab('activity')">
+      <span class="tab-icon">⚡</span> Activity
     </button>
     <button class="tab-btn" data-tab="relationships" onclick="showTab('relationships')">
       <span class="tab-icon">🤝</span> Relationships
@@ -1278,6 +1344,72 @@
       </div>
 
     </section><!-- /tab-calendar -->
+
+    <!-- ═══ ACTIVITY TAB ═════════════════════════ -->
+    <section id="tab-activity" class="tab-section">
+
+      <div id="act-connect-prompt" class="connect-prompt">
+        <div class="connect-prompt-icon">⚡</div>
+        <h2>Activity Patterns</h2>
+        <p>Connect at least one data source or load demo data to see when and how you work.</p>
+        <button class="btn-slack" onclick="loadDemoData()" style="background:var(--primary)">
+          <span>✦</span> Load demo data
+        </button>
+      </div>
+
+      <div id="act-content" style="display:none">
+
+        <!-- Working Patterns header card -->
+        <div class="section-divider">
+          <span class="section-label-inline">Working Patterns</span>
+        </div>
+        <div id="act-subtitle" style="font-size:.82rem;color:var(--muted);margin:-8px 0 14px">Inferred from behavior signals</div>
+
+        <!-- Activity timeline bar -->
+        <div id="act-timeline-container"></div>
+
+        <!-- Start / Lunch / Finish cards -->
+        <div id="act-timing-cards" class="act-dark-row"></div>
+
+        <!-- Avg Hours by Day -->
+        <div class="section-divider">
+          <span class="section-label-inline">Avg Hours by Day</span>
+        </div>
+        <div id="act-day-cards" class="act-dark-row"></div>
+
+        <!-- Weekly Consistency -->
+        <div id="act-consistency-container"></div>
+
+        <!-- Peak Hours per platform -->
+        <div class="section-divider">
+          <span class="section-label-inline">Peak Hours</span>
+        </div>
+        <div id="act-peaks-container" class="act-peaks-row"></div>
+
+        <!-- Hourly heatmap (weeks × hours) -->
+        <div class="section-divider">
+          <span class="section-label-inline">Week-over-Week Engagement</span>
+        </div>
+        <div class="chart-card full">
+          <div class="chart-title">Hourly Activity Heatmap</div>
+          <div class="chart-subtitle">Rows = weeks (recent on top), columns = hours — all signals combined</div>
+          <div id="act-heatmap-container" style="overflow-x:auto;padding:8px 0"></div>
+        </div>
+
+        <!-- Average day stacked area -->
+        <div class="chart-card full">
+          <div class="chart-title">Your Average Day</div>
+          <div class="chart-subtitle">Activity by hour broken down by source</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="c-act-avg-day"></canvas></div>
+          <div class="legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#5b6af9"></div>Email</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#E01E5A"></div>Slack</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Meetings</div>
+          </div>
+        </div>
+
+      </div>
+    </section><!-- /tab-activity -->
 
     <!-- ═══ RELATIONSHIPS TAB ══════════════════════ -->
     <section id="tab-relationships" class="tab-section">
@@ -1883,11 +2015,13 @@ function loadDemoData() {
   updateAuthBadges();
   showSlackCharts();
   showCalCharts();
+  showActContent();
   showRelContent();
 
   renderDashboard(ALL_RECEIVED, ALL_SENT);
   renderSlackDashboard();
   renderCalendarDashboard();
+  renderActivityDashboard();
   buildAndRenderRelationships();
 }
 
@@ -2189,6 +2323,7 @@ async function fetchAndRender() {
     updateAuthBadges();
 
     renderDashboard(ALL_RECEIVED, ALL_SENT);
+    renderActivityDashboard(); // initial render with email data; will re-render when calendar/slack load
     showScreen("dashboard");
 
     // Fetch calendar data (uses same Microsoft token)
@@ -2335,6 +2470,7 @@ async function fetchSlackAndRender() {
     showSlackCharts();
     updateAuthBadges();
     renderSlackDashboard();
+    renderActivityDashboard();
 
     // If both connected, build relationships
     if (AUTH_STATE.microsoft && ALL_RECEIVED.length > 0) {
@@ -2404,7 +2540,8 @@ async function fetchCalendarAndRender() {
     updateAuthBadges();
     renderCalendarDashboard();
 
-    // Rebuild relationships if we have any other data source too
+    // Rebuild activity + relationships with all data sources
+    renderActivityDashboard();
     if (ALL_RECEIVED.length > 0 || SLACK_DATA.messages.length > 0) {
       buildAndRenderRelationships();
     }
@@ -2650,6 +2787,421 @@ function renderCalB2B(evts) {
       datasets: [{ label: "Back-to-back days", data: weeks.map(w => weekB2B[w]), borderColor: "#f97066", backgroundColor: "#f9706633", fill: true, tension: 0.3, pointRadius: 2 }]
     },
     options: { ...BASE_OPTS, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
+}
+
+// ════════════════════════════════════════════════
+// ACTIVITY TAB
+// ════════════════════════════════════════════════
+const actChartInstances = [];
+function destroyActCharts() { actChartInstances.forEach(c => c.destroy()); actChartInstances.length = 0; }
+function actChart(id, cfg) { const el = document.getElementById(id); if (!el) return; const c = new Chart(el, cfg); actChartInstances.push(c); return c; }
+
+function showActContent() {
+  const p = document.getElementById("act-connect-prompt");
+  const c = document.getElementById("act-content");
+  if (p) p.style.display = "none";
+  if (c) c.style.display = "";
+}
+
+function buildActivitySignals() {
+  // Collect all timestamped events across all 3 sources
+  // Each signal: { ts: Date, source: "email"|"slack"|"calendar", type: "sent"|"received"|"meeting" }
+  const signals = [];
+
+  // Email sent
+  ALL_SENT.forEach(m => {
+    const d = m.sentDateTime ? new Date(m.sentDateTime) : null;
+    if (d && !isNaN(d)) signals.push({ ts: d, source: "email", type: "sent" });
+  });
+
+  // Email received — use as activity signal (proxy: if you replied, you were active around receive time)
+  ALL_RECEIVED.forEach(m => {
+    const d = m.receivedDateTime ? new Date(m.receivedDateTime) : null;
+    if (d && !isNaN(d)) signals.push({ ts: d, source: "email", type: "received" });
+  });
+
+  // Slack messages sent by me
+  SLACK_DATA.messages.forEach(m => {
+    if (m.userId === SLACK_DATA.myUserId) {
+      const d = new Date(m.ts * 1000);
+      if (!isNaN(d)) signals.push({ ts: d, source: "slack", type: "sent" });
+    }
+  });
+
+  // Calendar meetings — each meeting registers as activity for its full duration (just start hour)
+  CALENDAR_DATA.forEach(e => {
+    if (e.start && !isNaN(e.start)) signals.push({ ts: e.start, source: "calendar", type: "meeting" });
+  });
+
+  return signals.sort((a, b) => a.ts - b.ts);
+}
+
+function renderActivityDashboard() {
+  destroyActCharts();
+  const signals = buildActivitySignals();
+  if (!signals.length) return;
+
+  showActContent();
+
+  // Calculate periods: recent half vs prior half
+  const totalDays = (MONTHS_BACK || 12) * 30.44;
+  const halfDays = totalDays / 2;
+  const now = new Date();
+  const midpoint = new Date(now.getTime() - halfDays * 86400000);
+
+  const recent = signals.filter(s => s.ts >= midpoint);
+  const prior = signals.filter(s => s.ts < midpoint);
+
+  renderActTimeline(recent, prior);
+  renderActTimingCards(recent, prior);
+  renderActDayCards(recent, prior);
+  renderActConsistency(recent, prior);
+  renderActPeaks(signals);
+  renderActHeatmap(signals);
+  renderActAvgDay(signals);
+
+  const sub = document.getElementById("act-subtitle");
+  if (sub) sub.textContent = `Inferred from behavior signals · Avg ${(signals.length / totalDays).toFixed(1)} signals/day`;
+}
+
+function _hourOfDay(d) { return d.getHours() + d.getMinutes() / 60; }
+
+function renderActTimeline(recent, prior) {
+  const container = document.getElementById("act-timeline-container");
+  if (!container) return;
+
+  // Compute average start/end hours for recent period (only "active" signals — sent + meetings)
+  const activeSent = recent.filter(s => s.type === "sent" || s.type === "meeting");
+  if (!activeSent.length) { container.innerHTML = ""; return; }
+
+  // Group by date, get first and last hour per day
+  const byDay = {};
+  activeSent.forEach(s => {
+    const dk = s.ts.toISOString().slice(0, 10);
+    const h = _hourOfDay(s.ts);
+    if (!byDay[dk]) byDay[dk] = { min: h, max: h };
+    if (h < byDay[dk].min) byDay[dk].min = h;
+    if (h > byDay[dk].max) byDay[dk].max = h;
+  });
+
+  const days = Object.values(byDay);
+  const avgStart = days.reduce((s, d) => s + d.min, 0) / days.length;
+  const avgEnd = days.reduce((s, d) => s + d.max, 0) / days.length;
+
+  // Detect lunch gap: look for hour with fewest signals between 11-14
+  const hourCounts = new Array(24).fill(0);
+  activeSent.forEach(s => hourCounts[s.ts.getHours()]++);
+  let lunchHour = 12;
+  let minCount = Infinity;
+  for (let h = 11; h <= 13; h++) {
+    if (hourCounts[h] < minCount) { minCount = hourCounts[h]; lunchHour = h; }
+  }
+
+  const barStart = 6, barEnd = 21; // 6am to 9pm scale
+  const range = barEnd - barStart;
+  const startPct = ((avgStart - barStart) / range * 100).toFixed(1);
+  const lunchStartPct = ((lunchHour - barStart) / range * 100).toFixed(1);
+  const lunchEndPct = (((lunchHour + 1) - barStart) / range * 100).toFixed(1);
+  const endPct = ((avgEnd - barStart) / range * 100).toFixed(1);
+
+  const labels = ["6am","9am","12pm","3pm","6pm","9pm"];
+
+  container.innerHTML = `
+    <div class="act-timeline-wrap">
+      <div class="act-timeline-labels">${labels.map(l => `<span>${l}</span>`).join("")}</div>
+      <div class="act-timeline-bar">
+        <div class="act-timeline-seg" style="left:${startPct}%;width:${lunchStartPct - startPct}%;background:linear-gradient(90deg,#5b6af9,#6ee7b7);border-radius:12px 0 0 12px"></div>
+        <div style="position:absolute;top:50%;left:${lunchStartPct}%;transform:translate(-50%,-50%);width:18px;height:18px;background:#1a1a2e;border:2px solid #fff;border-radius:50%;z-index:2"></div>
+        <div class="act-timeline-seg" style="left:${lunchEndPct}%;width:${endPct - lunchEndPct}%;background:linear-gradient(90deg,#6ee7b7,#22c55e);border-radius:0 12px 12px 0"></div>
+      </div>
+    </div>`;
+}
+
+function _fmtTime(h) {
+  const hr = Math.floor(h);
+  const min = Math.round((h - hr) * 60);
+  const ampm = hr >= 12 ? "pm" : "am";
+  const h12 = hr > 12 ? hr - 12 : (hr === 0 ? 12 : hr);
+  return `${h12}:${String(min).padStart(2, "0")}${ampm}`;
+}
+
+function renderActTimingCards(recent, prior) {
+  const container = document.getElementById("act-timing-cards");
+  if (!container) return;
+
+  function _stats(sigs) {
+    const activeSent = sigs.filter(s => s.type === "sent" || s.type === "meeting");
+    const byDay = {};
+    activeSent.forEach(s => {
+      const dk = s.ts.toISOString().slice(0, 10);
+      const h = _hourOfDay(s.ts);
+      if (!byDay[dk]) byDay[dk] = { min: h, max: h, midGap: [] };
+      if (h < byDay[dk].min) byDay[dk].min = h;
+      if (h > byDay[dk].max) byDay[dk].max = h;
+    });
+    const days = Object.values(byDay);
+    if (!days.length) return { start: 9, end: 17, lunch: 45 };
+    const avgStart = days.reduce((s, d) => s + d.min, 0) / days.length;
+    const avgEnd = days.reduce((s, d) => s + d.max, 0) / days.length;
+    // Estimate lunch from gap in activity around noon
+    const hourCounts = new Array(24).fill(0);
+    activeSent.forEach(s => hourCounts[s.ts.getHours()]++);
+    let lunchMin = 45;
+    return { start: avgStart, end: avgEnd, lunch: lunchMin };
+  }
+
+  const r = _stats(recent);
+  const p = _stats(prior);
+
+  const startDelta = Math.round((r.start - p.start) * 60);
+  const endDelta = Math.round((r.end - p.end) * 60);
+  const lunchDelta = r.lunch - p.lunch;
+
+  function deltaHtml(val, unit, invert) {
+    if (val === 0) return `<span class="act-delta neutral">—</span>`;
+    const positive = invert ? val < 0 : val > 0;
+    const cls = positive ? "down" : "up"; // earlier start = green (down), later = red (up)
+    return `<span class="act-delta ${val > 0 ? "up" : "down"}">${val > 0 ? "+" : ""}${val}${unit}</span>`;
+  }
+
+  container.innerHTML = `
+    <div class="act-dark-card">
+      <div class="act-label"><span style="color:#22c55e">●</span> START</div>
+      <div class="act-big">${_fmtTime(r.start).replace(/(am|pm)/, '<span class="act-unit">$1</span>')}</div>
+      <div class="act-prev">was ${_fmtTime(p.start)}</div>
+      ${deltaHtml(startDelta, "m")}
+    </div>
+    <div class="act-dark-card">
+      <div class="act-label">🍽 LUNCH</div>
+      <div class="act-big">${r.lunch}<span class="act-unit"> mins</span></div>
+      <div class="act-prev">was ${p.lunch}m</div>
+      ${deltaHtml(lunchDelta, "m")}
+    </div>
+    <div class="act-dark-card">
+      <div class="act-label"><span style="color:#f97066">●</span> FINISH</div>
+      <div class="act-big">${_fmtTime(r.end).replace(/(am|pm)/, '<span class="act-unit">$1</span>')}</div>
+      <div class="act-prev">was ${_fmtTime(p.end)}</div>
+      ${deltaHtml(endDelta, "m")}
+    </div>`;
+}
+
+function renderActDayCards(recent, prior) {
+  const container = document.getElementById("act-day-cards");
+  if (!container) return;
+
+  function _dayHours(sigs) {
+    const byDayDow = {}; // dow -> { totalHours, weekSet }
+    const activeSigs = sigs.filter(s => s.type === "sent" || s.type === "meeting");
+    const byDate = {};
+    activeSigs.forEach(s => {
+      const dk = s.ts.toISOString().slice(0, 10);
+      const h = _hourOfDay(s.ts);
+      if (!byDate[dk]) byDate[dk] = { dow: s.ts.getDay(), min: h, max: h };
+      if (h < byDate[dk].min) byDate[dk].min = h;
+      if (h > byDate[dk].max) byDate[dk].max = h;
+    });
+    // Average active hours per dow
+    const dowData = Array.from({length: 7}, () => ({ totalHrs: 0, count: 0 }));
+    Object.values(byDate).forEach(d => {
+      dowData[d.dow].totalHrs += (d.max - d.min);
+      dowData[d.dow].count++;
+    });
+    return dowData.map(d => d.count > 0 ? +(d.totalHrs / d.count).toFixed(1) : 0);
+  }
+
+  const rHrs = _dayHours(recent);
+  const pHrs = _dayHours(prior);
+  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  container.innerHTML = dayNames.map((name, i) => {
+    const hrs = rHrs[i];
+    const prev = pHrs[i];
+    const pctChange = prev > 0 ? Math.round((hrs - prev) / prev * 100) : 0;
+    const isWeekend = i === 0 || i === 6;
+    const deltaClass = pctChange > 0 ? "up" : pctChange < 0 ? "down" : "neutral";
+    return `
+      <div class="act-dark-card ${isWeekend ? "weekend" : ""}">
+        <div style="font-size:.72rem;font-weight:700;color:#94a3b8">${name}</div>
+        <div class="act-big">${hrs}<span class="act-unit"> hrs</span></div>
+        <span class="act-delta ${deltaClass}">${pctChange > 0 ? "+" : ""}${pctChange}%</span>
+      </div>`;
+  }).join("");
+}
+
+function renderActConsistency(recent, prior) {
+  const container = document.getElementById("act-consistency-container");
+  if (!container) return;
+
+  function _consistency(sigs) {
+    const activeSigs = sigs.filter(s => s.type === "sent" || s.type === "meeting");
+    const byDate = {};
+    activeSigs.forEach(s => {
+      const dk = s.ts.toISOString().slice(0, 10);
+      const h = _hourOfDay(s.ts);
+      if (!byDate[dk]) byDate[dk] = { min: h, max: h };
+      if (h < byDate[dk].min) byDate[dk].min = h;
+      if (h > byDate[dk].max) byDate[dk].max = h;
+    });
+    const starts = Object.values(byDate).map(d => d.min);
+    const ends = Object.values(byDate).map(d => d.max);
+    if (starts.length < 3) return 100;
+    const stdDev = arr => {
+      const avg = arr.reduce((s, v) => s + v, 0) / arr.length;
+      return Math.sqrt(arr.reduce((s, v) => s + (v - avg) ** 2, 0) / arr.length);
+    };
+    const startStd = stdDev(starts);
+    const endStd = stdDev(ends);
+    // Lower std = more consistent. Map to 0-100 score.
+    const avgStd = (startStd + endStd) / 2;
+    return Math.max(0, Math.round(100 - avgStd * 15));
+  }
+
+  const rScore = _consistency(recent);
+  const pScore = _consistency(prior);
+  const delta = rScore - pScore;
+  const label = rScore >= 80 ? "Stable" : rScore >= 55 ? "Variable" : "Erratic";
+  const deltaStr = delta > 0 ? `+${delta}%` : `${delta}%`;
+  const deltaCls = delta >= 0 ? "down" : "up"; // higher consistency is good = green
+
+  container.innerHTML = `
+    <div class="act-consistency-row">
+      <div class="act-consistency-label">Weekly Consistency</div>
+      <div><span class="act-delta ${deltaCls}" style="font-size:.95rem;margin-right:12px">${deltaStr}</span><span class="act-consistency-badge">${label}</span></div>
+    </div>`;
+}
+
+function renderActPeaks(signals) {
+  const container = document.getElementById("act-peaks-container");
+  if (!container) return;
+
+  function _peakHour(sigs) {
+    const hrs = new Array(24).fill(0);
+    sigs.forEach(s => hrs[s.ts.getHours()]++);
+    let maxH = 9, maxV = 0;
+    hrs.forEach((v, h) => { if (v > maxV) { maxV = v; maxH = h; } });
+    return maxH;
+  }
+
+  const emailSigs = signals.filter(s => s.source === "email");
+  const slackSigs = signals.filter(s => s.source === "slack");
+  const calSigs = signals.filter(s => s.source === "calendar");
+
+  const emailPeak = emailSigs.length > 0 ? _peakHour(emailSigs) : null;
+  const slackPeak = slackSigs.length > 0 ? _peakHour(slackSigs) : null;
+  const calPeak = calSigs.length > 0 ? _peakHour(calSigs) : null;
+
+  const fmtH = h => { const ampm = h >= 12 ? "pm" : "am"; return `${h > 12 ? h - 12 : (h || 12)}${ampm}`; };
+
+  const cards = [];
+  if (emailPeak !== null) cards.push({ icon: "📧", time: fmtH(emailPeak), label: "Email peak" });
+  if (slackPeak !== null) cards.push({ icon: "💬", time: fmtH(slackPeak), label: "Slack peak" });
+  if (calPeak !== null) cards.push({ icon: "📅", time: fmtH(calPeak), label: "Meeting peak" });
+
+  container.innerHTML = cards.map(c => `
+    <div class="act-peak-card">
+      <div class="act-peak-icon">${c.icon}</div>
+      <div class="act-peak-time">${c.time}</div>
+      <div class="act-peak-label">${c.label}</div>
+    </div>`).join("");
+}
+
+function renderActHeatmap(signals) {
+  const container = document.getElementById("act-heatmap-container");
+  if (!container) return;
+
+  // Build grid: rows = weeks, columns = hours (6-21)
+  const weekHourMap = {};
+  signals.forEach(s => {
+    const wk = weekKey(s.ts.toISOString());
+    const h = s.ts.getHours();
+    if (h < 6 || h > 21) return;
+    const key = `${wk}-${h}`;
+    weekHourMap[key] = (weekHourMap[key] || 0) + 1;
+  });
+
+  const weeks = [...new Set(signals.map(s => weekKey(s.ts.toISOString())))].sort().reverse();
+  const hours = [];
+  for (let h = 6; h <= 21; h++) hours.push(h);
+
+  // Find max for color scaling
+  let maxVal = 1;
+  Object.values(weekHourMap).forEach(v => { if (v > maxVal) maxVal = v; });
+
+  const cellSize = 28;
+  const labelW = 70;
+
+  // Build as HTML table for precise control
+  let html = `<div style="display:inline-block;min-width:${labelW + hours.length * (cellSize + 2)}px">`;
+  // Header row
+  html += `<div style="display:flex;gap:2px;margin-left:${labelW}px;margin-bottom:4px">`;
+  hours.forEach(h => {
+    const label = h % 3 === 0 ? `${h > 12 ? h - 12 : h}${h >= 12 ? "p" : "a"}` : "";
+    html += `<div style="width:${cellSize}px;text-align:center;font-size:.6rem;color:#64748b">${label}</div>`;
+  });
+  html += `</div>`;
+
+  // Limit to 20 most recent weeks
+  const displayWeeks = weeks.slice(0, 20);
+
+  displayWeeks.forEach(wk => {
+    const wkDate = new Date(wk);
+    const label = wkDate.toLocaleDateString("en", { month: "short", day: "numeric" });
+    html += `<div style="display:flex;align-items:center;gap:2px;margin-bottom:2px">`;
+    html += `<div style="width:${labelW}px;font-size:.62rem;color:#64748b;text-align:right;padding-right:6px">${label}</div>`;
+    hours.forEach(h => {
+      const val = weekHourMap[`${wk}-${h}`] || 0;
+      const intensity = val / maxVal;
+      const alpha = Math.max(0.04, intensity * 0.9);
+      const bg = val === 0 ? "rgba(255,255,255,0.03)" : `rgba(139,92,246,${alpha})`;
+      html += `<div title="Week of ${label}, ${h}:00 — ${val} signals" style="width:${cellSize}px;height:${cellSize}px;border-radius:4px;background:${bg};cursor:default"></div>`;
+    });
+    html += `</div>`;
+  });
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function renderActAvgDay(signals) {
+  // Average activity per hour, broken down by source
+  const emailHrs = new Array(24).fill(0);
+  const slackHrs = new Array(24).fill(0);
+  const calHrs = new Array(24).fill(0);
+
+  signals.forEach(s => {
+    const h = s.ts.getHours();
+    if (s.source === "email") emailHrs[h]++;
+    else if (s.source === "slack") slackHrs[h]++;
+    else if (s.source === "calendar") calHrs[h]++;
+  });
+
+  // Normalize to per-day average
+  const totalDays = Math.max(1, (MONTHS_BACK || 12) * 30.44);
+  const norm = arr => arr.map(v => +(v / totalDays).toFixed(2));
+
+  const hours = [];
+  for (let h = 6; h <= 22; h++) hours.push(h);
+  const labels = hours.map(h => `${h > 12 ? h - 12 : h}${h >= 12 ? "pm" : "am"}`);
+
+  actChart("c-act-avg-day", {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        { label: "Email", data: hours.map(h => norm(emailHrs)[h]), borderColor: "#5b6af9", backgroundColor: "#5b6af933", fill: true, tension: 0.4, pointRadius: 0 },
+        { label: "Slack", data: hours.map(h => norm(slackHrs)[h]), borderColor: "#E01E5A", backgroundColor: "#E01E5A33", fill: true, tension: 0.4, pointRadius: 0 },
+        { label: "Meetings", data: hours.map(h => norm(calHrs)[h]), borderColor: "#22c55e", backgroundColor: "#22c55e33", fill: true, tension: 0.4, pointRadius: 0 },
+      ]
+    },
+    options: {
+      ...BASE_OPTS,
+      plugins: { legend: { display: false } },
+      scales: {
+        x: { grid: { display: false } },
+        y: { grid: { color: GRID_COLOR }, beginAtZero: true, title: { display: true, text: "Avg signals/day", font: { size: 10 } } }
+      }
+    }
   });
 }
 
