@@ -1778,25 +1778,43 @@ function connectSlack() {
 // ════════════════════════════════════════════════
 // AUTH
 // ════════════════════════════════════════════════
+let _justConnectedSlack = false; // flag: user just returned from Slack OAuth
+
 async function init() {
   // Check for Slack OAuth callback in hash
   handleSlackHash();
 
   await msalInstance.initialize();
   const accounts = msalInstance.getAllAccounts();
-  if (accounts.length > 0) {
+  const hasMicrosoft = accounts.length > 0;
+
+  if (hasMicrosoft) {
     msalInstance.setActiveAccount(accounts[0]);
     AUTH_STATE.microsoft = true;
+  }
+
+  if (hasMicrosoft && !_justConnectedSlack) {
+    // Normal flow: user has Microsoft, didn't just come from Slack
     showScreen("loading-screen");
     setLoading("Loading your data…", "", 5);
     await fetchAndRender();
   } else if (AUTH_STATE.slack) {
-    // Only Slack connected — go to dashboard with Slack tab
-    showScreen("dashboard");
-    updateAuthBadges();
-    showSlackCharts();
-    showTab("slack");
-    await fetchSlackAndRender();
+    // User just connected Slack (or Slack-only)
+    if (hasMicrosoft) {
+      // Both: fetch email first, then Slack, and open Slack tab
+      showScreen("loading-screen");
+      setLoading("Loading your email data…", "", 5);
+      await fetchAndRender();       // this shows dashboard with email tab
+      showTab("slack");              // switch to Slack tab
+      await fetchSlackAndRender();   // fetch Slack in background
+    } else {
+      // Slack only
+      showScreen("dashboard");
+      updateAuthBadges();
+      showSlackCharts();
+      showTab("slack");
+      await fetchSlackAndRender();
+    }
   } else {
     showScreen("login-screen");
   }
@@ -1811,6 +1829,7 @@ function handleSlackHash() {
     SLACK_TOKEN = params.get("slack_token");
     SLACK_DATA.myUserId = params.get("slack_user_id") || null;
     AUTH_STATE.slack = true;
+    _justConnectedSlack = true;
     // Store in sessionStorage for persistence during session
     sessionStorage.setItem("slack_token", SLACK_TOKEN);
     sessionStorage.setItem("slack_user_id", SLACK_DATA.myUserId || "");
