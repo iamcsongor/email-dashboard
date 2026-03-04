@@ -1975,10 +1975,16 @@ async function fetchAndRender() {
 // ════════════════════════════════════════════════
 // SLACK DATA PIPELINE
 // ════════════════════════════════════════════════
+const _slackThrottle = { last: 0 };
 async function slackAPI(method, params = {}) {
-  // Route through server-side proxy to avoid CORS
+  // Enforce min 1.2s gap between ANY Slack API calls to stay under Tier 3 limits
+  const now = Date.now();
+  const elapsed = now - _slackThrottle.last;
+  if (elapsed < 1200) await new Promise(r => setTimeout(r, 1200 - elapsed));
+  _slackThrottle.last = Date.now();
+
   let retries = 0;
-  while (retries < 4) {
+  while (retries < 5) {
     const resp = await fetch("/api/slack-proxy", {
       method: "POST",
       headers: {
@@ -1988,8 +1994,13 @@ async function slackAPI(method, params = {}) {
       body: JSON.stringify({ method, params }),
     });
     if (resp.status === 429) {
-      const wait = parseInt(resp.headers.get("Retry-After") || "5", 10);
-      await new Promise(r => setTimeout(r, (wait + 1) * 1000));
+      // Read retry_after from body (more reliable than headers through proxy)
+      let retryAfter = 5;
+      try { const b = await resp.json(); retryAfter = b.retry_after || 5; } catch(e) {}
+      const backoff = Math.max(retryAfter + 1, Math.pow(2, retries + 1));
+      console.warn(`Slack 429 on ${method}, waiting ${backoff}s (retry ${retries + 1}/5)`);
+      await new Promise(r => setTimeout(r, backoff * 1000));
+      _slackThrottle.last = Date.now();
       retries++;
       continue;
     }
@@ -2015,7 +2026,8 @@ async function fetchSlackConversations() {
     all.push(...(data.channels || []));
     cursor = data.response_metadata?.next_cursor || "";
   } while (cursor);
-  return all;
+  // Filter to only channels user is a member of (skips 800+ public channels they never use)
+  return all.filter(ch => ch.is_member || ch.is_im || ch.is_mpim);
 }
 
 async function fetchSlackHistory(channelId, oldest) {
@@ -2041,14 +2053,19 @@ async function fetchSlackAndRender() {
     SLACK_DATA.users = users;
 
     setLoading("Fetching Slack channels…", "", 20);
-    const convos = await fetchSlackConversations();
+    const allConvos = await fetchSlackConversations();
+    // Skip archived channels
+    const convos = allConvos.filter(ch => !ch.is_archived);
     SLACK_DATA.channels = convos;
+    console.log(`Slack: ${convos.length} active member channels (filtered from conversations.list)`);
 
     const cutoff = Math.floor(Date.now() / 1000) - (MONTHS_BACK || 12) * 30.44 * 86400;
     const messages = [];
     let done = 0;
+    let skipped = 0;
 
     for (const ch of convos) {
+      const label = ch.name || (ch.is_im ? `DM: ${userMap[ch.user] || ch.user}` : "group");
       try {
         const msgs = await fetchSlackHistory(ch.id, cutoff);
         msgs.forEach(m => {
@@ -2057,7 +2074,7 @@ async function fetchSlackAndRender() {
             userId: m.user || m.bot_id || "",
             userName: userMap[m.user] || m.username || "bot",
             channelId: ch.id,
-            channelName: ch.name || (ch.is_im ? `DM: ${userMap[ch.user] || ch.user}` : "group"),
+            channelName: label,
             channelType: ch.is_im ? "dm" : ch.is_mpim ? "group" : ch.is_private ? "private" : "public",
             text: m.text || "",
             reactions: m.reactions || [],
@@ -2067,12 +2084,14 @@ async function fetchSlackAndRender() {
           });
         });
       } catch (e) {
-        // Skip channels we can't access (not_in_channel etc)
-        console.warn(`Skipping ${ch.name || ch.id}: ${e.message}`);
+        // Skip channels we can't access (not_in_channel, channel_not_found, etc)
+        console.warn(`Skipping ${label}: ${e.message}`);
+        skipped++;
       }
       done++;
-      setLoading("Fetching Slack messages…", `${done}/${convos.length} channels`, 20 + (done / convos.length) * 60);
+      setLoading("Fetching Slack messages…", `${done}/${convos.length} channels (${messages.length} msgs)`, 20 + (done / convos.length) * 60);
     }
+    console.log(`Slack: ${messages.length} messages from ${done - skipped} channels (${skipped} skipped)`);
 
     SLACK_DATA.messages = messages;
     setLoading("Building Slack charts…", "", 90);
