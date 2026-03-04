@@ -1976,12 +1976,16 @@ async function fetchAndRender() {
 // SLACK DATA PIPELINE
 // ════════════════════════════════════════════════
 async function slackAPI(method, params = {}) {
-  const url = new URL(`https://slack.com/api/${method}`);
-  Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
+  // Route through server-side proxy to avoid CORS
   let retries = 0;
   while (retries < 4) {
-    const resp = await fetch(url.toString(), {
-      headers: { Authorization: `Bearer ${SLACK_TOKEN}` }
+    const resp = await fetch("/api/slack-proxy", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Slack-Token": SLACK_TOKEN,
+      },
+      body: JSON.stringify({ method, params }),
     });
     if (resp.status === 429) {
       const wait = parseInt(resp.headers.get("Retry-After") || "5", 10);
