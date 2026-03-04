@@ -790,12 +790,21 @@
     letter-spacing: .04em;
   }
 
-  /* ── Activity tab dark cards ── */
+  /* ── Activity tab — cohesive dark panel ── */
+  .act-panel {
+    background: #111827; border-radius: 20px; padding: 28px 24px 24px;
+    color: #e0e0e0;
+  }
+  .act-section-label {
+    font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .08em;
+    color: #64748b; margin: 22px 0 10px; padding-left: 2px;
+  }
+  .act-section-label:first-child { margin-top: 0; }
   .act-dark-row {
-    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; margin-bottom: 18px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 14px;
   }
   .act-dark-card {
-    background: #1a1a2e; border-radius: 14px; padding: 16px 14px; text-align: center;
+    background: #1e293b; border-radius: 12px; padding: 14px 12px; text-align: center;
     color: #e0e0e0; display: flex; flex-direction: column; gap: 2px;
   }
   .act-dark-card .act-label {
@@ -820,7 +829,7 @@
   .act-dark-card.weekend { opacity: 0.55; }
 
   .act-timeline-wrap {
-    background: #1a1a2e; border-radius: 14px; padding: 20px; margin-bottom: 18px;
+    background: #1e293b; border-radius: 12px; padding: 18px; margin-bottom: 14px;
   }
   .act-timeline-labels {
     display: flex; justify-content: space-between; font-size: .7rem; color: #64748b; margin-bottom: 6px; padding: 0 4px;
@@ -834,22 +843,32 @@
 
   .act-consistency-row {
     display: flex; justify-content: space-between; align-items: center;
-    background: #1a1a2e; border-radius: 14px; padding: 18px 22px; margin-bottom: 18px; color: #fff;
+    background: #1e293b; border-radius: 12px; padding: 16px 20px; margin-bottom: 14px; color: #fff;
   }
-  .act-consistency-label { font-size: 1.05rem; font-weight: 600; }
+  .act-consistency-label { font-size: .95rem; font-weight: 600; }
   .act-consistency-badge {
-    font-size: .82rem; font-weight: 700; padding: 5px 14px; border-radius: 20px; background: #22c55e22; color: #6ee7b7;
+    font-size: .82rem; font-weight: 700; padding: 5px 14px; border-radius: 20px;
   }
+  .act-consistency-badge.stable { background: rgba(34,197,94,0.15); color: #6ee7b7; }
+  .act-consistency-badge.variable { background: rgba(234,179,8,0.15); color: #fbbf24; }
+  .act-consistency-badge.erratic { background: rgba(249,112,102,0.12); color: #fca5a1; }
 
   .act-peaks-row {
-    display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 18px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px;
   }
   .act-peak-card {
-    background: #1a1a2e; border-radius: 14px; padding: 16px 12px; text-align: center; color: #e0e0e0;
+    background: #1e293b; border-radius: 12px; padding: 14px 12px; text-align: center; color: #e0e0e0;
   }
   .act-peak-icon { font-size: 1.3rem; margin-bottom: 4px; }
   .act-peak-time { font-size: 1.3rem; font-weight: 800; color: #fff; }
   .act-peak-label { font-size: .65rem; color: #64748b; text-transform: uppercase; letter-spacing: .04em; margin-top: 2px; }
+
+  /* Dark chart cards inside activity panel */
+  .act-panel .chart-card {
+    background: #1e293b; box-shadow: none; color: #e0e0e0;
+  }
+  .act-panel .chart-card .chart-title { color: #fff; }
+  .act-panel .chart-card .chart-subtitle { color: #64748b; }
 
   @media (max-width: 800px) {
     main { padding: 16px; }
@@ -863,6 +882,7 @@
     .rel-cards-grid { grid-template-columns: 1fr; }
     .act-dark-row { grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); }
     .act-peaks-row { grid-template-columns: 1fr; }
+    .act-panel { padding: 20px 14px 16px; }
   }
 </style>
 </head>
@@ -1358,56 +1378,48 @@
       </div>
 
       <div id="act-content" style="display:none">
+        <div class="act-panel">
 
-        <!-- Working Patterns header card -->
-        <div class="section-divider">
-          <span class="section-label-inline">Working Patterns</span>
-        </div>
-        <div id="act-subtitle" style="font-size:.82rem;color:var(--muted);margin:-8px 0 14px">Inferred from behavior signals</div>
+          <div id="act-subtitle" style="font-size:.78rem;color:#94a3b8;margin-bottom:16px">Working Patterns · <span id="act-subtitle-detail">Inferred from behavior signals</span></div>
 
-        <!-- Activity timeline bar -->
-        <div id="act-timeline-container"></div>
+          <!-- Activity timeline bar -->
+          <div id="act-timeline-container"></div>
 
-        <!-- Start / Lunch / Finish cards -->
-        <div id="act-timing-cards" class="act-dark-row"></div>
+          <!-- Start / Lunch / Finish cards -->
+          <div id="act-timing-cards" class="act-dark-row"></div>
 
-        <!-- Avg Hours by Day -->
-        <div class="section-divider">
-          <span class="section-label-inline">Avg Hours by Day</span>
-        </div>
-        <div id="act-day-cards" class="act-dark-row"></div>
+          <!-- Avg Hours by Day -->
+          <div class="act-section-label">Avg Hours by Day</div>
+          <div id="act-day-cards" class="act-dark-row"></div>
 
-        <!-- Weekly Consistency -->
-        <div id="act-consistency-container"></div>
+          <!-- Weekly Consistency -->
+          <div id="act-consistency-container"></div>
 
-        <!-- Peak Hours per platform -->
-        <div class="section-divider">
-          <span class="section-label-inline">Peak Hours</span>
-        </div>
-        <div id="act-peaks-container" class="act-peaks-row"></div>
+          <!-- Peak Hours per platform -->
+          <div class="act-section-label">Peak Hours</div>
+          <div id="act-peaks-container" class="act-peaks-row"></div>
 
-        <!-- Hourly heatmap (weeks × hours) -->
-        <div class="section-divider">
-          <span class="section-label-inline">Week-over-Week Engagement</span>
-        </div>
-        <div class="chart-card full">
-          <div class="chart-title">Hourly Activity Heatmap</div>
-          <div class="chart-subtitle">Rows = weeks (recent on top), columns = hours — all signals combined</div>
-          <div id="act-heatmap-container" style="overflow-x:auto;padding:8px 0"></div>
-        </div>
-
-        <!-- Average day stacked area -->
-        <div class="chart-card full">
-          <div class="chart-title">Your Average Day</div>
-          <div class="chart-subtitle">Activity by hour broken down by source</div>
-          <div class="chart-wrap" style="height:260px"><canvas id="c-act-avg-day"></canvas></div>
-          <div class="legend">
-            <div class="legend-item"><div class="legend-dot" style="background:#5b6af9"></div>Email</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#E01E5A"></div>Slack</div>
-            <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Meetings</div>
+          <!-- Hourly heatmap (weeks × hours) -->
+          <div class="act-section-label">Week-over-Week Engagement</div>
+          <div class="chart-card full">
+            <div class="chart-title">Hourly Activity Heatmap</div>
+            <div class="chart-subtitle">Rows = weeks (recent on top), columns = hours — all signals combined</div>
+            <div id="act-heatmap-container" style="overflow-x:auto;padding:8px 0"></div>
           </div>
-        </div>
 
+          <!-- Average day stacked area -->
+          <div class="chart-card full">
+            <div class="chart-title">Your Average Day</div>
+            <div class="chart-subtitle">Activity by hour broken down by source</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-act-avg-day"></canvas></div>
+            <div class="legend" style="color:#94a3b8">
+              <div class="legend-item"><div class="legend-dot" style="background:#5b6af9"></div>Email</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#E01E5A"></div>Slack</div>
+              <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Meetings</div>
+            </div>
+          </div>
+
+        </div>
       </div>
     </section><!-- /tab-activity -->
 
@@ -1635,7 +1647,7 @@ function generateDemoData() {
       for (let i = 0; i < count; i++) {
         let day = rInt(1, daysInM);
         const dow = new Date(mDate.getFullYear(), mDate.getMonth(), day).getDay();
-        if ((dow === 0 || dow === 6) && rBool(0.72)) continue; // skip most weekends
+        if ((dow === 0 || dow === 6) && rBool(0.88)) continue; // skip most weekends
         const hour = rBool(0.72) ? rInt(8,18) : rInt(6,22);
         const ts   = new Date(mDate.getFullYear(), mDate.getMonth(), day, hour, rInt(0,59), 0);
         if (ts > now) continue;
@@ -2861,8 +2873,8 @@ function renderActivityDashboard() {
   renderActHeatmap(signals);
   renderActAvgDay(signals);
 
-  const sub = document.getElementById("act-subtitle");
-  if (sub) sub.textContent = `Inferred from behavior signals · Avg ${(signals.length / totalDays).toFixed(1)} signals/day`;
+  const sub = document.getElementById("act-subtitle-detail");
+  if (sub) sub.textContent = `Avg ${(signals.length / totalDays).toFixed(1)} signals/day across ${Math.round(totalDays)} days`;
 }
 
 function _hourOfDay(d) { return d.getHours() + d.getMinutes() / 60; }
@@ -2912,7 +2924,7 @@ function renderActTimeline(recent, prior) {
       <div class="act-timeline-labels">${labels.map(l => `<span>${l}</span>`).join("")}</div>
       <div class="act-timeline-bar">
         <div class="act-timeline-seg" style="left:${startPct}%;width:${lunchStartPct - startPct}%;background:linear-gradient(90deg,#5b6af9,#6ee7b7);border-radius:12px 0 0 12px"></div>
-        <div style="position:absolute;top:50%;left:${lunchStartPct}%;transform:translate(-50%,-50%);width:18px;height:18px;background:#1a1a2e;border:2px solid #fff;border-radius:50%;z-index:2"></div>
+        <div style="position:absolute;top:50%;left:${lunchStartPct}%;transform:translate(-50%,-50%);width:18px;height:18px;background:#1e293b;border:2px solid #fff;border-radius:50%;z-index:2"></div>
         <div class="act-timeline-seg" style="left:${lunchEndPct}%;width:${endPct - lunchEndPct}%;background:linear-gradient(90deg,#6ee7b7,#22c55e);border-radius:0 12px 12px 0"></div>
       </div>
     </div>`;
@@ -2991,20 +3003,17 @@ function renderActDayCards(recent, prior) {
   if (!container) return;
 
   function _dayHours(sigs) {
-    const byDayDow = {}; // dow -> { totalHours, weekSet }
+    // Count distinct active hours per day (not max-min span which inflates)
     const activeSigs = sigs.filter(s => s.type === "sent" || s.type === "meeting");
     const byDate = {};
     activeSigs.forEach(s => {
       const dk = s.ts.toISOString().slice(0, 10);
-      const h = _hourOfDay(s.ts);
-      if (!byDate[dk]) byDate[dk] = { dow: s.ts.getDay(), min: h, max: h };
-      if (h < byDate[dk].min) byDate[dk].min = h;
-      if (h > byDate[dk].max) byDate[dk].max = h;
+      if (!byDate[dk]) byDate[dk] = { dow: s.ts.getDay(), hours: new Set() };
+      byDate[dk].hours.add(s.ts.getHours());
     });
-    // Average active hours per dow
     const dowData = Array.from({length: 7}, () => ({ totalHrs: 0, count: 0 }));
     Object.values(byDate).forEach(d => {
-      dowData[d.dow].totalHrs += (d.max - d.min);
+      dowData[d.dow].totalHrs += d.hours.size;
       dowData[d.dow].count++;
     });
     return dowData.map(d => d.count > 0 ? +(d.totalHrs / d.count).toFixed(1) : 0);
@@ -3012,17 +3021,19 @@ function renderActDayCards(recent, prior) {
 
   const rHrs = _dayHours(recent);
   const pHrs = _dayHours(prior);
-  const dayNames = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  // Mon-Sun order (indices 1,2,3,4,5,6,0)
+  const dayOrder = [1, 2, 3, 4, 5, 6, 0];
+  const dayNames = ["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
 
-  container.innerHTML = dayNames.map((name, i) => {
-    const hrs = rHrs[i];
-    const prev = pHrs[i];
+  container.innerHTML = dayOrder.map((dow, idx) => {
+    const hrs = rHrs[dow];
+    const prev = pHrs[dow];
     const pctChange = prev > 0 ? Math.round((hrs - prev) / prev * 100) : 0;
-    const isWeekend = i === 0 || i === 6;
+    const isWeekend = dow === 0 || dow === 6;
     const deltaClass = pctChange > 0 ? "up" : pctChange < 0 ? "down" : "neutral";
     return `
       <div class="act-dark-card ${isWeekend ? "weekend" : ""}">
-        <div style="font-size:.72rem;font-weight:700;color:#94a3b8">${name}</div>
+        <div style="font-size:.72rem;font-weight:700;color:#94a3b8">${dayNames[idx]}</div>
         <div class="act-big">${hrs}<span class="act-unit"> hrs</span></div>
         <span class="act-delta ${deltaClass}">${pctChange > 0 ? "+" : ""}${pctChange}%</span>
       </div>`;
@@ -3060,14 +3071,15 @@ function renderActConsistency(recent, prior) {
   const rScore = _consistency(recent);
   const pScore = _consistency(prior);
   const delta = rScore - pScore;
-  const label = rScore >= 80 ? "Stable" : rScore >= 55 ? "Variable" : "Erratic";
+  const label = rScore >= 80 ? "Stable" : rScore >= 55 ? "Variable" : "Flexible";
+  const badgeCls = rScore >= 80 ? "stable" : rScore >= 55 ? "variable" : "erratic";
   const deltaStr = delta > 0 ? `+${delta}%` : `${delta}%`;
-  const deltaCls = delta >= 0 ? "down" : "up"; // higher consistency is good = green
+  const deltaCls = delta >= 0 ? "down" : "up";
 
   container.innerHTML = `
     <div class="act-consistency-row">
-      <div class="act-consistency-label">Weekly Consistency</div>
-      <div><span class="act-delta ${deltaCls}" style="font-size:.95rem;margin-right:12px">${deltaStr}</span><span class="act-consistency-badge">${label}</span></div>
+      <div class="act-consistency-label">Weekly Consistency · <span style="font-weight:400;color:#64748b">${rScore}%</span></div>
+      <div><span class="act-delta ${deltaCls}" style="font-size:.95rem;margin-right:12px">${deltaStr}</span><span class="act-consistency-badge ${badgeCls}">${label}</span></div>
     </div>`;
 }
 
@@ -3153,7 +3165,7 @@ function renderActHeatmap(signals) {
       const val = weekHourMap[`${wk}-${h}`] || 0;
       const intensity = val / maxVal;
       const alpha = Math.max(0.04, intensity * 0.9);
-      const bg = val === 0 ? "rgba(255,255,255,0.03)" : `rgba(139,92,246,${alpha})`;
+      const bg = val === 0 ? "rgba(255,255,255,0.04)" : `rgba(139,92,246,${alpha})`;
       html += `<div title="Week of ${label}, ${h}:00 — ${val} signals" style="width:${cellSize}px;height:${cellSize}px;border-radius:4px;background:${bg};cursor:default"></div>`;
     });
     html += `</div>`;
@@ -3195,11 +3207,11 @@ function renderActAvgDay(signals) {
       ]
     },
     options: {
-      ...BASE_OPTS,
+      responsive: true, maintainAspectRatio: false,
       plugins: { legend: { display: false } },
       scales: {
-        x: { grid: { display: false } },
-        y: { grid: { color: GRID_COLOR }, beginAtZero: true, title: { display: true, text: "Avg signals/day", font: { size: 10 } } }
+        x: { grid: { display: false }, ticks: { color: "#64748b", font: { size: 10 } } },
+        y: { grid: { color: "rgba(255,255,255,0.06)" }, beginAtZero: true, ticks: { color: "#64748b", font: { size: 10 } }, title: { display: true, text: "Avg signals/day", color: "#64748b", font: { size: 10 } } }
       }
     }
   });
