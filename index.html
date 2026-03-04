@@ -941,6 +941,10 @@
       <span class="tab-icon">💬</span> Slack
       <span class="tab-badge not-connected" id="badge-slack">connect</span>
     </button>
+    <button class="tab-btn" data-tab="calendar" onclick="showTab('calendar')">
+      <span class="tab-icon">📅</span> Calendar
+      <span class="tab-badge connected" id="badge-calendar" style="display:none">✓</span>
+    </button>
     <button class="tab-btn" data-tab="relationships" onclick="showTab('relationships')">
       <span class="tab-icon">🤝</span> Relationships
     </button>
@@ -1187,6 +1191,94 @@
 
     </section><!-- /tab-slack -->
 
+    <!-- ═══ CALENDAR TAB ═════════════════════════ -->
+    <section id="tab-calendar" class="tab-section">
+
+      <!-- Connect prompt (shown when Microsoft not connected) -->
+      <div id="cal-connect-prompt" class="connect-prompt">
+        <div class="connect-prompt-icon">📅</div>
+        <h2>Calendar Analytics</h2>
+        <p>Sign in with Microsoft to analyse your meeting patterns — time allocation, attendee frequency, meeting sizes, and more.</p>
+        <button class="login-btn" onclick="login()" style="margin:0 auto">
+          <img src="https://learn.microsoft.com/en-us/entra/identity-platform/media/howto-add-branding-in-apps/ms-symbollockup_mssymbol_19.svg" alt="Microsoft" />
+          Sign in with Microsoft
+        </button>
+      </div>
+
+      <!-- Charts (shown when calendar data loaded or demo mode) -->
+      <div id="cal-charts" style="display:none">
+        <div>
+          <div class="section-label" id="cal-overview-label">Calendar Overview</div>
+          <div class="stats-grid" id="cal-stats-grid"></div>
+        </div>
+
+        <div class="chart-card full">
+          <div class="chart-title">Meeting Hours Per Week</div>
+          <div class="chart-subtitle">Total hours spent in meetings each week</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="c-cal-hours"></canvas></div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Meeting Duration Distribution</div>
+            <div class="chart-subtitle">How long are your meetings?</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-cal-duration"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Meeting Size</div>
+            <div class="chart-subtitle">1:1 vs small group vs large meetings</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-cal-size"></canvas></div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Top Meeting Contacts</div>
+            <div class="chart-subtitle">People you meet with most</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-cal-contacts"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Internal vs External</div>
+            <div class="chart-subtitle">Meetings by attendee domains</div>
+            <div class="chart-wrap" style="height:260px"><canvas id="c-cal-internal"></canvas></div>
+          </div>
+        </div>
+
+        <div class="chart-card full">
+          <div class="chart-title">Meeting Heatmap</div>
+          <div class="chart-subtitle">When your meetings happen (day × hour)</div>
+          <div class="chart-wrap" style="height:220px"><canvas id="c-cal-heatmap"></canvas></div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Recurring vs One-off</div>
+            <div class="chart-subtitle">Series meetings vs ad-hoc</div>
+            <div class="chart-wrap" style="height:220px"><canvas id="c-cal-recurring"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Response Status</div>
+            <div class="chart-subtitle">Your accept / tentative / decline rate</div>
+            <div class="chart-wrap" style="height:220px"><canvas id="c-cal-response"></canvas></div>
+          </div>
+        </div>
+
+        <div class="charts-grid">
+          <div class="chart-card">
+            <div class="chart-title">Free vs Booked by Day</div>
+            <div class="chart-subtitle">Average meeting hours per weekday</div>
+            <div class="chart-wrap" style="height:220px"><canvas id="c-cal-weekday"></canvas></div>
+          </div>
+          <div class="chart-card">
+            <div class="chart-title">Back-to-Back Days</div>
+            <div class="chart-subtitle">Weeks with consecutive meetings (≤5 min gap)</div>
+            <div class="chart-wrap" style="height:220px"><canvas id="c-cal-b2b"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+    </section><!-- /tab-calendar -->
+
     <!-- ═══ RELATIONSHIPS TAB ══════════════════════ -->
     <section id="tab-relationships" class="tab-section">
 
@@ -1194,7 +1286,7 @@
       <div id="rel-connect-prompt" class="connect-prompt">
         <div class="connect-prompt-icon">🤝</div>
         <h2>Cross-channel relationships</h2>
-        <p>Connect both your email and Slack to see how you communicate with each person across channels, or try demo data.</p>
+        <p>Connect your email, Slack, and calendar to see how you communicate with each person across all channels, or try demo data.</p>
         <button class="btn-slack" onclick="loadDemoData()" style="background:var(--primary)">
           <span>✦</span> Load demo data
         </button>
@@ -1228,14 +1320,15 @@
         <div class="rel-controls">
           <select class="rel-sort" id="rel-sort" onchange="renderRelCards()">
             <option value="total">Sort: Total interactions</option>
+            <option value="meetings">Sort: Most meetings</option>
             <option value="recent">Sort: Most recent</option>
-            <option value="response">Sort: Response time</option>
           </select>
           <select class="rel-filter" id="rel-filter" onchange="renderRelCards()">
             <option value="all">Show: All contacts</option>
-            <option value="both">Both channels</option>
+            <option value="multi">Multi-channel</option>
             <option value="email-only">Email only</option>
             <option value="slack-only">Slack only</option>
+            <option value="calendar-only">Calendar only</option>
           </select>
         </div>
 
@@ -1641,6 +1734,123 @@ function generateSlackDemoData() {
   return { messages, channels: allChannels, users: slackUsers, myUserId: ME_ID };
 }
 
+function generateCalendarDemoData() {
+  let seed = 5381;
+  const rng  = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 0x100000000; };
+  const pick = arr => arr[Math.floor(rng() * arr.length)];
+  const rInt = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+
+  // Reuse some email contacts + add calendar-specific people
+  const PEOPLE = [
+    { name:"Sarah Chen",       email:"sarah.chen@acmecorp.io" },
+    { name:"Marcus Webb",      email:"marcus@nexuspartners.com" },
+    { name:"Priya Sharma",     email:"p.sharma@acmecorp.io" },
+    { name:"James O'Brien",    email:"james@bridgevc.com" },
+    { name:"Lena Fischer",     email:"l.fischer@acmecorp.io" },
+    { name:"Tom Bradley",      email:"t.bradley@stellartech.io" },
+    { name:"Aisha Osei",       email:"a.osei@globalstrategy.com" },
+    { name:"David Park",       email:"d.park@acmecorp.io" },
+    { name:"Emma Thornton",    email:"e.thornton@counsellors.co" },
+    { name:"Rafael Santos",    email:"r.santos@launchbase.io" },
+    { name:"Yuki Tanaka",      email:"y.tanaka@globalstrategy.com" },
+    { name:"Hannah Mueller",   email:"h.mueller@nexuspartners.com" },
+    { name:"Ben Foster",       email:"ben@fostervc.com" },
+    { name:"Clara Diaz",       email:"c.diaz@launchbase.io" },
+    { name:"Oliver Wright",    email:"o.wright@acmecorp.io" },
+  ];
+
+  const MY_DOMAIN = "cambri.io";
+
+  const MEETING_TYPES = [
+    { name: "1:1 with {person}",     minAtt: 1, maxAtt: 1, minDur: 25, maxDur: 50, recur: 0.7, freq: 0.30 },
+    { name: "Team standup",          minAtt: 3, maxAtt: 6, minDur: 15, maxDur: 15, recur: 0.95, freq: 0.20 },
+    { name: "Sprint planning",       minAtt: 4, maxAtt: 8, minDur: 55, maxDur: 60, recur: 0.8, freq: 0.06 },
+    { name: "Design review",         minAtt: 3, maxAtt: 5, minDur: 30, maxDur: 45, recur: 0.4, freq: 0.06 },
+    { name: "Product sync",          minAtt: 2, maxAtt: 4, minDur: 30, maxDur: 45, recur: 0.6, freq: 0.08 },
+    { name: "Board meeting",         minAtt: 5, maxAtt: 10, minDur: 60, maxDur: 90, recur: 0.3, freq: 0.02 },
+    { name: "Investor update",       minAtt: 2, maxAtt: 4, minDur: 30, maxDur: 60, recur: 0.2, freq: 0.03 },
+    { name: "Customer call: {co}",   minAtt: 2, maxAtt: 5, minDur: 25, maxDur: 45, recur: 0.3, freq: 0.08 },
+    { name: "All-hands",             minAtt: 8, maxAtt: 15, minDur: 45, maxDur: 60, recur: 0.9, freq: 0.03 },
+    { name: "Interview — {person}",  minAtt: 1, maxAtt: 3, minDur: 45, maxDur: 60, recur: 0, freq: 0.05 },
+    { name: "Lunch with {person}",   minAtt: 1, maxAtt: 2, minDur: 45, maxDur: 60, recur: 0.1, freq: 0.04 },
+    { name: "Strategy session",      minAtt: 3, maxAtt: 6, minDur: 60, maxDur: 90, recur: 0.2, freq: 0.03 },
+    { name: "Demo: {co}",            minAtt: 2, maxAtt: 6, minDur: 30, maxDur: 45, recur: 0, freq: 0.02 },
+  ];
+
+  const COMPANIES = ["Acme Corp","Stellar Tech","NexusPartners","Bridge VC","Global Strategy","LaunchBase"];
+  const RESPONSES = ["accepted","accepted","accepted","accepted","tentativelyAccepted","organizer","organizer","organizer","none"];
+
+  const events = [];
+  const now = new Date();
+
+  for (let m = 0; m < 12; m++) {
+    const mDate = new Date(now.getFullYear(), now.getMonth() - 11 + m, 1);
+    const daysInM = new Date(mDate.getFullYear(), mDate.getMonth() + 1, 0).getDate();
+    const busy = [1.15,1.10,1.08,0.95,0.90,0.82,0.72,0.80,0.97,1.12,1.22,0.68][mDate.getMonth()];
+
+    for (let d = 1; d <= daysInM; d++) {
+      const date = new Date(mDate.getFullYear(), mDate.getMonth(), d);
+      const dow = date.getDay();
+      if (dow === 0 || dow === 6) { if (rng() > 0.05) continue; } // rare weekend meetings
+
+      // 3–6 meetings per workday
+      const numMeetings = rInt(2, Math.round(6 * busy));
+
+      for (let i = 0; i < numMeetings; i++) {
+        // Pick meeting type weighted by freq
+        let r = rng();
+        let mt = MEETING_TYPES[0];
+        for (const t of MEETING_TYPES) { r -= t.freq; if (r <= 0) { mt = t; break; } }
+
+        const hour = rInt(8, 17);
+        const minute = pick([0, 0, 15, 30, 30, 45]);
+        const durMin = rInt(mt.minDur, mt.maxDur);
+        // Snap to 15/30/60
+        const snapDur = durMin <= 20 ? 15 : durMin <= 35 ? 30 : durMin <= 50 ? 45 : durMin <= 65 ? 60 : 90;
+
+        const start = new Date(date.getFullYear(), date.getMonth(), date.getDate(), hour, minute);
+        const end = new Date(start.getTime() + snapDur * 60000);
+
+        const numAtt = rInt(mt.minAtt, mt.maxAtt);
+        const attendees = [];
+        const usedIdx = new Set();
+        for (let a = 0; a < numAtt; a++) {
+          let idx;
+          let tries = 0;
+          do { idx = Math.floor(rng() * PEOPLE.length); tries++; } while (usedIdx.has(idx) && tries < 20);
+          usedIdx.add(idx);
+          const p = PEOPLE[idx];
+          attendees.push({
+            name: p.name,
+            email: p.email,
+            status: pick(RESPONSES),
+          });
+        }
+
+        const person = attendees[0]?.name || "Team";
+        const co = pick(COMPANIES);
+        const subject = mt.name.replace("{person}", person.split(" ")[0]).replace("{co}", co);
+        const isRecurring = rng() < mt.recur;
+        const hasExternal = attendees.some(a => a.email.split("@")[1] !== MY_DOMAIN && a.email.split("@")[1] !== "acmecorp.io");
+        const myResp = pick(RESPONSES);
+
+        events.push({
+          subject, start, end, durationMin: snapDur,
+          attendeeCount: numAtt + 1,
+          attendees,
+          isRecurring, hasExternal,
+          myResponse: myResp,
+          isOrganizer: myResp === "organizer",
+          dayOfWeek: dow,
+          hour,
+        });
+      }
+    }
+  }
+
+  return events;
+}
+
 function loadDemoData() {
   MONTHS_BACK = 12;
 
@@ -1658,19 +1868,26 @@ function loadDemoData() {
   SLACK_DATA.myUserId  = slackDemo.myUserId;
   AUTH_STATE.slack = true;
 
+  // Calendar demo data
+  CALENDAR_DATA = generateCalendarDemoData();
+
   document.getElementById("account-badge").textContent = "Demo Mode";
   const lbl = document.getElementById("overview-label");
   if (lbl) lbl.textContent = "12-month overview";
   const slbl = document.getElementById("slack-overview-label");
   if (slbl) slbl.textContent = "12-month Slack overview";
+  const clbl = document.getElementById("cal-overview-label");
+  if (clbl) clbl.textContent = "12-month Calendar overview";
 
   showScreen("dashboard");
   updateAuthBadges();
   showSlackCharts();
+  showCalCharts();
   showRelContent();
 
   renderDashboard(ALL_RECEIVED, ALL_SENT);
   renderSlackDashboard();
+  renderCalendarDashboard();
   buildAndRenderRelationships();
 }
 
@@ -1695,6 +1912,7 @@ let ALL_SENT     = [];
 let AUTH_STATE   = { microsoft: false, slack: false };
 let SLACK_TOKEN  = null;
 let SLACK_DATA   = { messages: [], channels: [], users: [], myUserId: null };
+let CALENDAR_DATA = []; // processed calendar events
 let REL_CONTACTS = []; // merged relationship contacts
 
 // ── Slack config ──
@@ -1713,7 +1931,7 @@ const msalInstance = new msal.PublicClientApplication({
   cache: { cacheLocation: "sessionStorage" }
 });
 
-const SCOPES = ["Mail.Read"];
+const SCOPES = ["Mail.Read", "Calendars.Read"];
 
 // ════════════════════════════════════════════════
 // UI HELPERS
@@ -1759,6 +1977,7 @@ function showTab(name) {
 function updateAuthBadges() {
   const eb = document.getElementById('badge-email');
   const sb = document.getElementById('badge-slack');
+  const cb = document.getElementById('badge-calendar');
   if (eb) {
     if (AUTH_STATE.microsoft) { eb.style.display = ''; eb.className = 'tab-badge connected'; eb.textContent = '✓'; }
     else { eb.style.display = 'none'; }
@@ -1767,6 +1986,17 @@ function updateAuthBadges() {
     if (AUTH_STATE.slack) { sb.className = 'tab-badge connected'; sb.textContent = '✓'; }
     else { sb.className = 'tab-badge not-connected'; sb.textContent = 'connect'; }
   }
+  if (cb) {
+    if (AUTH_STATE.microsoft && CALENDAR_DATA.length > 0) { cb.style.display = ''; cb.className = 'tab-badge connected'; cb.textContent = '✓'; }
+    else { cb.style.display = 'none'; }
+  }
+}
+
+function showCalCharts() {
+  const prompt = document.getElementById("cal-connect-prompt");
+  const charts = document.getElementById("cal-charts");
+  if (prompt) prompt.style.display = "none";
+  if (charts) charts.style.display = "";
 }
 
 function connectSlack() {
@@ -1888,6 +2118,7 @@ async function signOut() {
   AUTH_STATE = { microsoft: false, slack: false };
   SLACK_TOKEN = null;
   SLACK_DATA = { messages: [], channels: [], users: [], myUserId: null };
+  CALENDAR_DATA = [];
   ALL_RECEIVED = [];
   ALL_SENT = [];
   REL_CONTACTS = [];
@@ -1959,6 +2190,9 @@ async function fetchAndRender() {
 
     renderDashboard(ALL_RECEIVED, ALL_SENT);
     showScreen("dashboard");
+
+    // Fetch calendar data (uses same Microsoft token)
+    fetchCalendarAndRender();
 
     // If Slack is also connected, fetch Slack data in background
     if (AUTH_STATE.slack && SLACK_DATA.messages.length === 0) {
@@ -2116,6 +2350,307 @@ async function fetchSlackAndRender() {
       prompt.style.display = "";
     }
   }
+}
+
+// ════════════════════════════════════════════════
+// CALENDAR DATA PIPELINE
+// ════════════════════════════════════════════════
+async function fetchCalendarAndRender() {
+  try {
+    setLoading("Fetching calendar events…", "", 88);
+    const since = new Date();
+    if (MONTHS_BACK === 0) { since.setHours(0,0,0,0); } else { since.setMonth(since.getMonth() - MONTHS_BACK); }
+    const now = new Date();
+    const calUrl = `${GRAPH}/me/calendarView?startDateTime=${since.toISOString()}&endDateTime=${now.toISOString()}&$select=subject,start,end,attendees,isAllDay,recurrence,organizer,responseStatus,onlineMeetingUrl,isCancelled&$top=250&$orderby=start/dateTime`;
+
+    const events = await fetchAllPages(calUrl, n => {
+      setLoading("Fetching calendar events…", `${n} events`, 88);
+    });
+
+    // Get current user's email for "my" detection
+    const account = msalInstance.getActiveAccount();
+    const myEmail = (account?.username || "").toLowerCase();
+    const myDomain = myEmail.split("@")[1] || "";
+
+    CALENDAR_DATA = events.filter(e => !e.isCancelled && !e.isAllDay).map(e => {
+      const start = new Date(e.start.dateTime + (e.start.timeZone === "UTC" ? "Z" : ""));
+      const end   = new Date(e.end.dateTime + (e.end.timeZone === "UTC" ? "Z" : ""));
+      const durationMin = Math.max(0, (end - start) / 60000);
+      const attendees = (e.attendees || []).filter(a => a.emailAddress?.address?.toLowerCase() !== myEmail);
+      const hasExternal = attendees.some(a => {
+        const d = (a.emailAddress?.address || "").split("@")[1];
+        return d && d !== myDomain;
+      });
+      return {
+        subject: e.subject || "(No subject)",
+        start, end, durationMin,
+        attendeeCount: attendees.length + 1, // including me
+        attendees: attendees.map(a => ({
+          name: a.emailAddress?.name || a.emailAddress?.address?.split("@")[0] || "",
+          email: (a.emailAddress?.address || "").toLowerCase(),
+          status: a.status?.response || "none",
+        })),
+        isRecurring: !!e.recurrence || !!(e.seriesMasterId),
+        hasExternal,
+        myResponse: e.responseStatus?.response || "organizer",
+        isOrganizer: (e.organizer?.emailAddress?.address || "").toLowerCase() === myEmail,
+        dayOfWeek: start.getDay(),
+        hour: start.getHours(),
+      };
+    }).filter(e => e.durationMin > 0 && e.durationMin < 720); // skip all-day-ish events
+
+    console.log(`Calendar: ${CALENDAR_DATA.length} events loaded`);
+    showCalCharts();
+    updateAuthBadges();
+    renderCalendarDashboard();
+
+    // Rebuild relationships if we have any other data source too
+    if (ALL_RECEIVED.length > 0 || SLACK_DATA.messages.length > 0) {
+      buildAndRenderRelationships();
+    }
+  } catch (err) {
+    console.error("Calendar fetch error:", err);
+    // Non-fatal: just log it; email/slack still work
+  }
+}
+
+// ════════════════════════════════════════════════
+// CALENDAR CHART RENDERERS
+// ════════════════════════════════════════════════
+const calChartInstances = [];
+function destroyCalCharts() { calChartInstances.forEach(c => c.destroy()); calChartInstances.length = 0; }
+function calChart(id, cfg) { const el = document.getElementById(id); if (!el) return; const c = new Chart(el, cfg); calChartInstances.push(c); return c; }
+
+function renderCalendarDashboard() {
+  destroyCalCharts();
+  const evts = CALENDAR_DATA;
+  if (!evts.length) return;
+  renderCalStats(evts);
+  renderCalHoursPerWeek(evts);
+  renderCalDuration(evts);
+  renderCalSize(evts);
+  renderCalContacts(evts);
+  renderCalInternal(evts);
+  renderCalHeatmap(evts);
+  renderCalRecurring(evts);
+  renderCalResponse(evts);
+  renderCalWeekday(evts);
+  renderCalB2B(evts);
+}
+
+function renderCalStats(evts) {
+  const days = (MONTHS_BACK || 12) * 30.44;
+  const totalHrs = evts.reduce((s,e) => s + e.durationMin, 0) / 60;
+  const avgPerWeek = totalHrs / (days / 7);
+  const uniqueContacts = new Set();
+  evts.forEach(e => e.attendees.forEach(a => { if (a.email) uniqueContacts.add(a.email); }));
+  const recurPct = evts.length > 0 ? Math.round(evts.filter(e => e.isRecurring).length / evts.length * 100) : 0;
+
+  const cards = [
+    { label: "Total Meetings", value: evts.length.toLocaleString(), sub: `${(evts.length / days).toFixed(1)}/day` },
+    { label: "Hours in Meetings", value: totalHrs.toFixed(0), sub: `${avgPerWeek.toFixed(1)} hrs/week` },
+    { label: "Unique Contacts", value: uniqueContacts.size.toLocaleString(), sub: "met with" },
+    { label: "Recurring", value: recurPct + "%", sub: `${evts.filter(e=>e.isRecurring).length} series` },
+  ];
+  const grid = document.getElementById("cal-stats-grid");
+  if (!grid) return;
+  grid.innerHTML = cards.map(c => `<div class="stat-card"><div class="stat-label">${c.label}</div><div class="stat-value">${c.value}</div><div class="stat-sub">${c.sub}</div></div>`).join("");
+}
+
+function renderCalHoursPerWeek(evts) {
+  const weekMap = {};
+  evts.forEach(e => {
+    const wk = weekKey(e.start.toISOString());
+    weekMap[wk] = (weekMap[wk] || 0) + e.durationMin / 60;
+  });
+  const weeks = Object.keys(weekMap).sort();
+  calChart("c-cal-hours", {
+    type: "bar",
+    data: {
+      labels: weeks.map(w => { const d = new Date(w); return d.toLocaleDateString("en", { month: "short", day: "numeric" }); }),
+      datasets: [{ label: "Meeting hours", data: weeks.map(w => +weekMap[w].toFixed(1)), backgroundColor: "#8b5cf6cc", borderRadius: 3 }]
+    },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true, title: { display: true, text: "Hours", font: { size: 10 } } } } }
+  });
+}
+
+function renderCalDuration(evts) {
+  const buckets = { "<15m": 0, "15–30m": 0, "30–60m": 0, "1–2h": 0, "2h+": 0 };
+  evts.forEach(e => {
+    if (e.durationMin < 15) buckets["<15m"]++;
+    else if (e.durationMin < 30) buckets["15–30m"]++;
+    else if (e.durationMin < 60) buckets["30–60m"]++;
+    else if (e.durationMin < 120) buckets["1–2h"]++;
+    else buckets["2h+"]++;
+  });
+  calChart("c-cal-duration", {
+    type: "bar",
+    data: {
+      labels: Object.keys(buckets),
+      datasets: [{ data: Object.values(buckets), backgroundColor: ["#5b6af9","#8b5cf6","#a78bfa","#c4b5fd","#f97066"], borderRadius: 4 }]
+    },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true } } }
+  });
+}
+
+function renderCalSize(evts) {
+  const sizes = { "1:1": 0, "Small (3–5)": 0, "Medium (6–10)": 0, "Large (11+)": 0 };
+  evts.forEach(e => {
+    const n = e.attendeeCount;
+    if (n <= 2) sizes["1:1"]++;
+    else if (n <= 5) sizes["Small (3–5)"]++;
+    else if (n <= 10) sizes["Medium (6–10)"]++;
+    else sizes["Large (11+)"]++;
+  });
+  calChart("c-cal-size", {
+    type: "doughnut",
+    data: {
+      labels: Object.keys(sizes),
+      datasets: [{ data: Object.values(sizes), backgroundColor: ["#5b6af9","#8b5cf6","#a78bfa","#f97066"], borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}
+
+function renderCalContacts(evts) {
+  const counts = {};
+  evts.forEach(e => e.attendees.forEach(a => { if (a.name) counts[a.name] = (counts[a.name] || 0) + 1; }));
+  const top = Object.entries(counts).sort((a,b) => b[1] - a[1]).slice(0, 12);
+  calChart("c-cal-contacts", {
+    type: "bar",
+    data: {
+      labels: top.map(t => t[0].split(" ")[0]),
+      datasets: [{ data: top.map(t => t[1]), backgroundColor: "#8b5cf6cc", borderRadius: 3 }]
+    },
+    options: { ...BASE_OPTS, indexAxis: "y", plugins: { legend: { display: false } }, scales: { x: { grid: { color: GRID_COLOR }, beginAtZero: true }, y: { grid: { display: false } } } }
+  });
+}
+
+function renderCalInternal(evts) {
+  const internal = evts.filter(e => !e.hasExternal).length;
+  const external = evts.filter(e => e.hasExternal).length;
+  calChart("c-cal-internal", {
+    type: "doughnut",
+    data: {
+      labels: ["Internal only", "Has external attendees"],
+      datasets: [{ data: [internal, external], backgroundColor: ["#5b6af9","#f97066"], borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}
+
+function renderCalHeatmap(evts) {
+  const grid = {};
+  evts.forEach(e => {
+    const key = `${e.dayOfWeek}-${e.hour}`;
+    grid[key] = (grid[key] || 0) + 1;
+  });
+  const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const pts = [];
+  let maxV = 1;
+  for (let d = 0; d < 7; d++) for (let h = 7; h < 20; h++) {
+    const v = grid[`${d}-${h}`] || 0;
+    if (v > maxV) maxV = v;
+    pts.push({ x: h, y: d, r: Math.max(2, Math.sqrt(v) * 4), v });
+  }
+  calChart("c-cal-heatmap", {
+    type: "bubble",
+    data: { datasets: [{ data: pts.map(p => ({ x: p.x, y: p.y, r: p.r })), backgroundColor: "#8b5cf6aa" }] },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const p = pts[ctx.dataIndex]; return `${dayLabels[p.y]} ${p.x}:00 — ${p.v} meetings`; } } } },
+      scales: { x: { min: 6.5, max: 19.5, grid: { color: GRID_COLOR }, ticks: { callback: v => `${v}:00`, stepSize: 1, font: { size: 10 } } }, y: { min: -0.5, max: 6.5, reverse: true, grid: { color: GRID_COLOR }, ticks: { callback: v => dayLabels[v] || "", stepSize: 1, font: { size: 10 } } } } }
+  });
+}
+
+function renderCalRecurring(evts) {
+  const recurring = evts.filter(e => e.isRecurring).length;
+  const oneOff = evts.length - recurring;
+  calChart("c-cal-recurring", {
+    type: "doughnut",
+    data: {
+      labels: ["Recurring", "One-off"],
+      datasets: [{ data: [recurring, oneOff], backgroundColor: ["#8b5cf6","#c4b5fd"], borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}
+
+function renderCalResponse(evts) {
+  const statuses = { accepted: 0, tentativelyAccepted: 0, declined: 0, organizer: 0, none: 0 };
+  evts.forEach(e => { statuses[e.myResponse] = (statuses[e.myResponse] || 0) + 1; });
+  calChart("c-cal-response", {
+    type: "doughnut",
+    data: {
+      labels: ["Accepted", "Tentative", "Declined", "Organizer", "No response"],
+      datasets: [{ data: [statuses.accepted, statuses.tentativelyAccepted, statuses.declined, statuses.organizer, statuses.none], backgroundColor: ["#22c55e","#eab308","#f97066","#5b6af9","#94a3b8"], borderWidth: 0 }]
+    },
+    options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } } } }
+  });
+}
+
+function renderCalWeekday(evts) {
+  const dayLabels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const dayHrs = new Array(7).fill(0);
+  const dayCnt = new Array(7).fill(0);
+  // Count distinct weeks per weekday to average
+  const weekSets = Array.from({length:7}, () => new Set());
+  evts.forEach(e => {
+    dayHrs[e.dayOfWeek] += e.durationMin / 60;
+    dayCnt[e.dayOfWeek]++;
+    weekSets[e.dayOfWeek].add(weekKey(e.start.toISOString()));
+  });
+  const avgHrs = dayHrs.map((h, i) => weekSets[i].size > 0 ? +(h / weekSets[i].size).toFixed(1) : 0);
+  calChart("c-cal-weekday", {
+    type: "bar",
+    data: {
+      labels: dayLabels,
+      datasets: [{ label: "Avg hours", data: avgHrs, backgroundColor: dayLabels.map((_,i) => i === 0 || i === 6 ? "#c4b5fd" : "#8b5cf6cc"), borderRadius: 4 }]
+    },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true, title: { display: true, text: "Avg hrs", font: { size: 10 } } } } }
+  });
+}
+
+function renderCalB2B(evts) {
+  // Group events by date, sort by start, detect ≤5 min gap
+  const byDate = {};
+  evts.forEach(e => {
+    const dk = e.start.toISOString().slice(0,10);
+    if (!byDate[dk]) byDate[dk] = [];
+    byDate[dk].push(e);
+  });
+  const weekB2B = {};
+  Object.entries(byDate).forEach(([dk, dayEvts]) => {
+    dayEvts.sort((a,b) => a.start - b.start);
+    let hasB2B = false;
+    for (let i = 1; i < dayEvts.length; i++) {
+      const gap = (dayEvts[i].start - dayEvts[i-1].end) / 60000;
+      if (gap <= 5) { hasB2B = true; break; }
+    }
+    if (hasB2B) {
+      const wk = weekKey(dk);
+      weekB2B[wk] = (weekB2B[wk] || 0) + 1;
+    }
+  });
+  const weeks = Object.keys(weekB2B).sort();
+  if (weeks.length === 0) {
+    // Fill with zeros using same weeks as hours chart
+    const weekMap = {};
+    evts.forEach(e => { weekMap[weekKey(e.start.toISOString())] = 0; });
+    const allWeeks = Object.keys(weekMap).sort();
+    calChart("c-cal-b2b", {
+      type: "line",
+      data: { labels: allWeeks.map(w => new Date(w).toLocaleDateString("en",{month:"short",day:"numeric"})), datasets: [{ label: "B2B days", data: allWeeks.map(() => 0), borderColor: "#f97066", backgroundColor: "#f9706633", fill: true, tension: 0.3 }] },
+      options: { ...BASE_OPTS, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true } } }
+    });
+    return;
+  }
+  calChart("c-cal-b2b", {
+    type: "line",
+    data: {
+      labels: weeks.map(w => new Date(w).toLocaleDateString("en", { month: "short", day: "numeric" })),
+      datasets: [{ label: "Back-to-back days", data: weeks.map(w => weekB2B[w]), borderColor: "#f97066", backgroundColor: "#f9706633", fill: true, tension: 0.3, pointRadius: 2 }]
+    },
+    options: { ...BASE_OPTS, plugins: { legend: { display: false } }, scales: { x: { grid: { display: false } }, y: { grid: { color: GRID_COLOR }, beginAtZero: true, ticks: { stepSize: 1 } } } }
+  });
 }
 
 // ════════════════════════════════════════════════
@@ -3701,6 +4236,14 @@ function buildContactBridge() {
     });
   });
 
+  // Build calendar meeting counts per attendee email
+  const calCounts = {};
+  CALENDAR_DATA.forEach(e => {
+    e.attendees.forEach(a => {
+      if (a.email) calCounts[a.email] = (calCounts[a.email] || 0) + 1;
+    });
+  });
+
   // Build Slack user map
   const slackUsers = {};
   SLACK_DATA.users.forEach(u => {
@@ -3719,6 +4262,7 @@ function buildContactBridge() {
   // Match: email → slack by (1) email match, (2) name match
   const contacts = [];
   const matchedSlackIds = new Set();
+  const matchedCalEmails = new Set();
 
   Object.values(emailContacts).forEach(ec => {
     let slackMatch = null;
@@ -3743,6 +4287,14 @@ function buildContactBridge() {
     }
 
     if (slackMatch) matchedSlackIds.add(slackMatch.id);
+    matchedCalEmails.add(ec.address);
+
+    const calCount = calCounts[ec.address] || 0;
+    const slackCount = slackMatch ? (slackCounts[slackMatch.id] || 0) : 0;
+    const chans = [];
+    if (ec.count > 0) chans.push("email");
+    if (slackCount > 0) chans.push("slack");
+    if (calCount > 0) chans.push("calendar");
 
     contacts.push({
       name: ec.name || ec.address.split("@")[0],
@@ -3750,27 +4302,52 @@ function buildContactBridge() {
       slackUserId: slackMatch?.id || null,
       slackName: slackMatch?.name || null,
       emailCount: ec.count,
-      slackCount: slackMatch ? (slackCounts[slackMatch.id] || 0) : 0,
-      channels: slackMatch ? "both" : "email-only",
+      slackCount,
+      calCount,
+      channels: chans.length >= 2 ? "multi" : chans[0] || "email",
+      channelList: chans,
     });
   });
 
   // Add Slack-only contacts
   Object.values(slackUsers).forEach(su => {
     if (!matchedSlackIds.has(su.id) && (slackCounts[su.id] || 0) > 0) {
+      const calCount = su.email ? (calCounts[su.email] || 0) : 0;
+      if (su.email) matchedCalEmails.add(su.email);
+      const chans = ["slack"];
+      if (calCount > 0) chans.push("calendar");
       contacts.push({
         name: su.name,
-        emailAddress: null,
+        emailAddress: su.email || null,
         slackUserId: su.id,
         slackName: su.name,
         emailCount: 0,
         slackCount: slackCounts[su.id] || 0,
-        channels: "slack-only",
+        calCount,
+        channels: chans.length >= 2 ? "multi" : "slack",
+        channelList: chans,
       });
     }
   });
 
-  return contacts.sort((a,b) => (b.emailCount + b.slackCount) - (a.emailCount + a.slackCount));
+  // Add calendar-only contacts (not matched to email or slack)
+  Object.entries(calCounts).forEach(([email, count]) => {
+    if (!matchedCalEmails.has(email)) {
+      contacts.push({
+        name: email.split("@")[0].replace(/[._]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+        emailAddress: email,
+        slackUserId: null,
+        slackName: null,
+        emailCount: 0,
+        slackCount: 0,
+        calCount: count,
+        channels: "calendar",
+        channelList: ["calendar"],
+      });
+    }
+  });
+
+  return contacts.sort((a,b) => (b.emailCount + b.slackCount + b.calCount) - (a.emailCount + a.slackCount + a.calCount));
 }
 
 function buildAndRenderRelationships() {
@@ -3783,21 +4360,22 @@ function buildAndRenderRelationships() {
 }
 
 function renderRelPreference() {
-  const both = REL_CONTACTS.filter(c => c.channels === "both").length;
-  const emailOnly = REL_CONTACTS.filter(c => c.channels === "email-only").length;
-  const slackOnly = REL_CONTACTS.filter(c => c.channels === "slack-only").length;
+  const multi = REL_CONTACTS.filter(c => c.channelList.length >= 2).length;
+  const emailOnly = REL_CONTACTS.filter(c => c.channelList.length === 1 && c.channelList[0] === "email").length;
+  const slackOnly = REL_CONTACTS.filter(c => c.channelList.length === 1 && c.channelList[0] === "slack").length;
+  const calOnly = REL_CONTACTS.filter(c => c.channelList.length === 1 && c.channelList[0] === "calendar").length;
   relChart("c-rel-preference", {
     type: "doughnut",
     data: {
-      labels: ["Both channels", "Email only", "Slack only"],
-      datasets: [{ data: [both, emailOnly, slackOnly], backgroundColor: ["#8b5cf6","#5b6af9","#E01E5A"], borderWidth: 0 }]
+      labels: ["Multi-channel", "Email only", "Slack only", "Calendar only"],
+      datasets: [{ data: [multi, emailOnly, slackOnly, calOnly], backgroundColor: ["#8b5cf6","#5b6af9","#E01E5A","#22c55e"], borderWidth: 0 }]
     },
     options: { ...BASE_OPTS, cutout: "55%", plugins: { legend: { position: "bottom", labels: { boxWidth: 10, font: { size: 11 } } } } }
   });
 }
 
 function renderRelEngagement() {
-  // Top 15 contacts, stacked bar: email vs slack
+  // Top 15 contacts, stacked bar: email vs slack vs calendar
   const top = REL_CONTACTS.slice(0, 15);
   relChart("c-rel-engagement", {
     type: "bar",
@@ -3805,7 +4383,8 @@ function renderRelEngagement() {
       labels: top.map(c => c.name.split(" ")[0]),
       datasets: [
         { label: "Email", data: top.map(c => c.emailCount), backgroundColor: "#5b6af9cc", borderRadius: 3 },
-        { label: "Slack", data: top.map(c => c.slackCount), backgroundColor: "#E01E5Acc", borderRadius: 3 }
+        { label: "Slack", data: top.map(c => c.slackCount), backgroundColor: "#E01E5Acc", borderRadius: 3 },
+        { label: "Meetings", data: top.map(c => c.calCount), backgroundColor: "#22c55ecc", borderRadius: 3 }
       ]
     },
     options: { ...BASE_OPTS, indexAxis: "y", plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 11 } } } },
@@ -3818,44 +4397,51 @@ function renderRelCards() {
   const filter = document.getElementById("rel-filter")?.value || "all";
 
   let filtered = [...REL_CONTACTS];
-  if (filter === "both") filtered = filtered.filter(c => c.channels === "both");
-  else if (filter === "email-only") filtered = filtered.filter(c => c.channels === "email-only");
-  else if (filter === "slack-only") filtered = filtered.filter(c => c.channels === "slack-only");
+  if (filter === "multi") filtered = filtered.filter(c => c.channelList.length >= 2);
+  else if (filter === "email-only") filtered = filtered.filter(c => c.channelList.length === 1 && c.channelList[0] === "email");
+  else if (filter === "slack-only") filtered = filtered.filter(c => c.channelList.length === 1 && c.channelList[0] === "slack");
+  else if (filter === "calendar-only") filtered = filtered.filter(c => c.channelList.length === 1 && c.channelList[0] === "calendar");
 
-  if (sort === "total") filtered.sort((a,b) => (b.emailCount+b.slackCount) - (a.emailCount+a.slackCount));
-  else if (sort === "recent") filtered.sort((a,b) => (b.emailCount+b.slackCount) - (a.emailCount+a.slackCount)); // simplified
-  else if (sort === "response") filtered.sort((a,b) => (b.emailCount+b.slackCount) - (a.emailCount+a.slackCount));
+  const totalFn = c => c.emailCount + c.slackCount + c.calCount;
+  if (sort === "total") filtered.sort((a,b) => totalFn(b) - totalFn(a));
+  else if (sort === "meetings") filtered.sort((a,b) => b.calCount - a.calCount);
+  else if (sort === "recent") filtered.sort((a,b) => totalFn(b) - totalFn(a));
 
   const grid = document.getElementById("rel-cards-grid");
   if (!grid) return;
 
   grid.innerHTML = filtered.slice(0, 50).map(c => {
-    const total = c.emailCount + c.slackCount;
+    const total = c.emailCount + c.slackCount + c.calCount;
     const emailPct = total > 0 ? Math.round(c.emailCount / total * 100) : 0;
-    const slackPct = 100 - emailPct;
+    const slackPct = total > 0 ? Math.round(c.slackCount / total * 100) : 0;
+    const calPct = Math.max(0, 100 - emailPct - slackPct);
     const initials = c.name.split(" ").map(p => p[0]).join("").toUpperCase().slice(0,2);
-    const channelLabel = c.channels === "both" ? "📧 + 💬" : c.channels === "email-only" ? "📧 only" : "💬 only";
+    const icons = c.channelList.map(ch => ch === "email" ? "📧" : ch === "slack" ? "💬" : "📅").join(" ");
     return `
       <div class="rel-card">
         <div class="rel-card-header">
           <div class="rel-avatar">${initials}</div>
           <div>
             <div class="rel-name">${c.name}</div>
-            <div class="rel-email">${c.emailAddress || c.slackName || ""} · ${channelLabel}</div>
+            <div class="rel-email">${c.emailAddress || c.slackName || ""} · ${icons}</div>
           </div>
         </div>
-        ${c.channels === "both" ? `
+        ${c.channelList.length >= 2 ? `
         <div class="rel-channel-bar">
-          <div class="email-part" style="width:${emailPct}%"></div>
-          <div class="slack-part" style="width:${slackPct}%"></div>
+          ${emailPct > 0 ? `<div class="email-part" style="width:${emailPct}%"></div>` : ""}
+          ${slackPct > 0 ? `<div class="slack-part" style="width:${slackPct}%"></div>` : ""}
+          ${calPct > 0 ? `<div style="width:${calPct}%;background:#22c55e;height:100%;border-radius:0 6px 6px 0"></div>` : ""}
         </div>
         <div style="display:flex;justify-content:space-between;font-size:.68rem;color:var(--muted)">
-          <span>📧 ${emailPct}%</span><span>💬 ${slackPct}%</span>
+          ${emailPct > 0 ? `<span>📧 ${emailPct}%</span>` : ""}
+          ${slackPct > 0 ? `<span>💬 ${slackPct}%</span>` : ""}
+          ${calPct > 0 ? `<span>📅 ${calPct}%</span>` : ""}
         </div>` : ""}
         <div class="rel-stats">
           <div class="rel-stat"><div class="rel-stat-value">${total}</div><div class="rel-stat-label">Total</div></div>
           <div class="rel-stat"><div class="rel-stat-value">${c.emailCount}</div><div class="rel-stat-label">Emails</div></div>
           <div class="rel-stat"><div class="rel-stat-value">${c.slackCount}</div><div class="rel-stat-label">Slack</div></div>
+          <div class="rel-stat"><div class="rel-stat-value">${c.calCount}</div><div class="rel-stat-label">Meetings</div></div>
         </div>
       </div>`;
   }).join("");
