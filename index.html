@@ -1836,7 +1836,9 @@ function handleSlackHash() {
     // Clean URL
     history.replaceState(null, "", window.location.pathname);
   } else if (params.has("slack_error")) {
-    console.error("Slack OAuth error:", params.get("slack_error"));
+    const slackErr = params.get("slack_error");
+    console.error("Slack OAuth error:", slackErr);
+    alert("Slack connection failed: " + slackErr);
     history.replaceState(null, "", window.location.pathname);
   }
 
