@@ -870,6 +870,15 @@
   .act-panel .chart-card .chart-title { color: #fff; }
   .act-panel .chart-card .chart-subtitle { color: #64748b; }
 
+  /* Side-by-side heatmap + avg day on wide screens */
+  .act-charts-row {
+    display: grid; grid-template-columns: 1fr; gap: 14px;
+  }
+  @media (min-width: 1100px) {
+    .act-charts-row { grid-template-columns: 3fr 2fr; }
+    .act-charts-row .chart-card { margin-bottom: 0; }
+  }
+
   @media (max-width: 800px) {
     main { padding: 16px; }
     .charts-grid { grid-template-columns: 1fr; }
@@ -1399,23 +1408,23 @@
           <div class="act-section-label">Peak Hours</div>
           <div id="act-peaks-container" class="act-peaks-row"></div>
 
-          <!-- Hourly heatmap (weeks × hours) -->
-          <div class="act-section-label">Week-over-Week Engagement</div>
-          <div class="chart-card full">
-            <div class="chart-title">Hourly Activity Heatmap</div>
-            <div class="chart-subtitle">Rows = weeks (recent on top), columns = hours — all signals combined</div>
-            <div id="act-heatmap-container" style="overflow-x:auto;padding:8px 0"></div>
-          </div>
-
-          <!-- Average day stacked area -->
-          <div class="chart-card full">
-            <div class="chart-title">Your Average Day</div>
-            <div class="chart-subtitle">Activity by hour broken down by source</div>
-            <div class="chart-wrap" style="height:260px"><canvas id="c-act-avg-day"></canvas></div>
-            <div class="legend" style="color:#94a3b8">
-              <div class="legend-item"><div class="legend-dot" style="background:#5b6af9"></div>Email</div>
-              <div class="legend-item"><div class="legend-dot" style="background:#E01E5A"></div>Slack</div>
-              <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Meetings</div>
+          <!-- Heatmap + Avg Day side by side -->
+          <div class="act-section-label">Engagement Breakdown</div>
+          <div class="act-charts-row">
+            <div class="chart-card">
+              <div class="chart-title">Hourly Activity Heatmap</div>
+              <div class="chart-subtitle">Weeks × hours — all signals combined</div>
+              <div id="act-heatmap-container" style="overflow-x:auto;padding:8px 0"></div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">Your Average Day</div>
+              <div class="chart-subtitle">Activity by hour broken down by source</div>
+              <div class="chart-wrap" style="height:280px"><canvas id="c-act-avg-day"></canvas></div>
+              <div class="legend" style="color:#94a3b8">
+                <div class="legend-item"><div class="legend-dot" style="background:#5b6af9"></div>Email</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#E01E5A"></div>Slack</div>
+                <div class="legend-item"><div class="legend-dot" style="background:#22c55e"></div>Meetings</div>
+              </div>
             </div>
           </div>
 
