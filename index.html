@@ -354,6 +354,33 @@
   }
   .btn-ghost:hover { background: var(--bg); }
 
+  /* ── Download button (matches btn-ghost, with icon) ── */
+  .btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 5px 12px;
+    border-radius: 8px;
+    font-size: .78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background .15s, color .15s, border-color .15s;
+  }
+  .btn-download:hover { background: var(--bg); color: var(--text-primary); border-color: var(--text-secondary); }
+  .btn-download:disabled { opacity: .5; cursor: default; }
+  .btn-download svg { width: 13px; height: 13px; }
+  .section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 12px;
+  }
+  .section-header .section-label { margin-bottom: 0; }
+
   main {
     max-width: 1360px;
     margin: 0 auto;
@@ -1051,7 +1078,13 @@
 
     <!-- Stats -->
     <div>
-      <div class="section-label" id="overview-label">Overview</div>
+      <div class="section-header">
+        <div class="section-label" id="overview-label">Overview</div>
+        <button class="btn-download" id="btn-download-emails" onclick="downloadEmails()" title="Download all emails as JSON" style="display:none">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span id="btn-download-emails-label">Download emails</span>
+        </button>
+      </div>
       <div class="stats-grid" id="stats-grid"></div>
     </div>
 
@@ -1224,7 +1257,13 @@
       <!-- Charts (shown when Slack connected or demo mode) -->
       <div id="slack-charts" style="display:none">
         <div>
-          <div class="section-label" id="slack-overview-label">Slack Overview</div>
+          <div class="section-header">
+            <div class="section-label" id="slack-overview-label">Slack Overview</div>
+            <button class="btn-download" id="btn-download-slack" onclick="downloadSlack()" title="Download all Slack data as JSON" style="display:none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span id="btn-download-slack-label">Download Slack</span>
+            </button>
+          </div>
           <div class="stats-grid" id="slack-stats-grid"></div>
         </div>
 
@@ -2006,6 +2045,7 @@ function generateCalendarDemoData() {
 
 function loadDemoData() {
   MONTHS_BACK = 12;
+  IS_DEMO = true;
 
   // Email demo data
   const { received, sent } = generateDemoData();
@@ -2069,6 +2109,7 @@ let SLACK_TOKEN  = null;
 let SLACK_DATA   = { messages: [], channels: [], users: [], myUserId: null };
 let CALENDAR_DATA = []; // processed calendar events
 let REL_CONTACTS = []; // merged relationship contacts
+let IS_DEMO      = false; // true after loadDemoData(); won't try to call live APIs
 
 // ── Slack config ──
 const SLACK_CLIENT_ID  = "729885942644.10595509625094";
@@ -2144,6 +2185,16 @@ function updateAuthBadges() {
   if (cb) {
     if (AUTH_STATE.microsoft && CALENDAR_DATA.length > 0) { cb.style.display = ''; cb.className = 'tab-badge connected'; cb.textContent = '✓'; }
     else { cb.style.display = 'none'; }
+  }
+
+  // Download buttons — show once data is in memory
+  const dlEmail = document.getElementById('btn-download-emails');
+  if (dlEmail) {
+    dlEmail.style.display = (AUTH_STATE.microsoft && (ALL_RECEIVED.length || ALL_SENT.length)) ? '' : 'none';
+  }
+  const dlSlack = document.getElementById('btn-download-slack');
+  if (dlSlack) {
+    dlSlack.style.display = (AUTH_STATE.slack && SLACK_DATA.messages.length) ? '' : 'none';
   }
 }
 
@@ -2277,6 +2328,7 @@ async function signOut() {
   ALL_RECEIVED = [];
   ALL_SENT = [];
   REL_CONTACTS = [];
+  IS_DEMO = false;
   sessionStorage.removeItem("slack_token");
   sessionStorage.removeItem("slack_user_id");
   showScreen("login-screen");
@@ -2507,6 +2559,142 @@ async function fetchSlackAndRender() {
       prompt.style.display = "";
     }
   }
+}
+
+// ════════════════════════════════════════════════
+// DOWNLOAD / EXPORT
+// ════════════════════════════════════════════════
+function _downloadJsonBlob(obj, filename) {
+  const blob = new Blob([JSON.stringify(obj, null, 2)], { type: "application/json" });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(url); a.remove(); }, 100);
+}
+
+function _dateStamp() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function _setBtnBusy(btnId, labelId, busyText, originalText) {
+  const btn = document.getElementById(btnId);
+  const lbl = document.getElementById(labelId);
+  if (btn) btn.disabled = !!busyText;
+  if (lbl && busyText)       lbl.textContent = busyText;
+  if (lbl && !busyText && originalText) lbl.textContent = originalText;
+}
+
+// Fetch full bodies for an array of message IDs using Microsoft Graph $batch
+// (max 20 per batch). Returns a map: id -> { contentType, content }.
+async function _fetchEmailBodies(ids, onProgress) {
+  const out = {};
+  if (!ids.length) return out;
+  const token = await getToken();
+  const BATCH_SIZE = 20;
+  for (let i = 0; i < ids.length; i += BATCH_SIZE) {
+    const slice = ids.slice(i, i + BATCH_SIZE);
+    const requests = slice.map((id, idx) => ({
+      id: String(idx),
+      method: "GET",
+      url: `/me/messages/${id}?$select=id,body`
+    }));
+    const resp = await fetch(`${GRAPH}/$batch`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type":  "application/json"
+      },
+      body: JSON.stringify({ requests })
+    });
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => ({}));
+      throw new Error(err.error?.message || `Graph $batch HTTP ${resp.status}`);
+    }
+    const data = await resp.json();
+    for (const r of (data.responses || [])) {
+      if (r.status >= 200 && r.status < 300 && r.body && r.body.id) {
+        out[r.body.id] = r.body.body || null;
+      }
+      // On per-message failure, leave undefined; export falls back to bodyPreview only.
+    }
+    if (onProgress) onProgress(Math.min(i + BATCH_SIZE, ids.length), ids.length);
+  }
+  return out;
+}
+
+async function downloadEmails() {
+  if (!ALL_RECEIVED.length && !ALL_SENT.length) {
+    if (typeof showError === "function") showError("No email data loaded yet.");
+    return;
+  }
+  const total = ALL_RECEIVED.length + ALL_SENT.length;
+  _setBtnBusy("btn-download-emails", "btn-download-emails-label", "Preparing…", null);
+
+  let bodies = {};
+  if (!IS_DEMO) {
+    try {
+      const ids = [];
+      ALL_RECEIVED.forEach(m => { if (m.id) ids.push(m.id); });
+      ALL_SENT.forEach(m =>     { if (m.id) ids.push(m.id); });
+      bodies = await _fetchEmailBodies(ids, (done, all) => {
+        const pct = Math.round((done / all) * 100);
+        _setBtnBusy("btn-download-emails", "btn-download-emails-label", `Fetching bodies ${pct}%`, null);
+      });
+    } catch (e) {
+      console.error("Email body fetch failed; exporting with bodyPreview only:", e);
+      bodies = {};
+    }
+  }
+
+  const enrich = m => {
+    const body = bodies[m.id];
+    return body ? { ...m, body } : { ...m };
+  };
+
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    source:     "microsoft-graph",
+    schema:     "ms-graph-messages-v1",
+    monthsBack: MONTHS_BACK,
+    isDemo:     IS_DEMO,
+    counts:     { received: ALL_RECEIVED.length, sent: ALL_SENT.length, total },
+    received:   ALL_RECEIVED.map(enrich),
+    sent:       ALL_SENT.map(enrich)
+  };
+
+  _downloadJsonBlob(payload, `comms-emails-${_dateStamp()}.json`);
+  _setBtnBusy("btn-download-emails", "btn-download-emails-label", null, "Download emails");
+}
+
+function downloadSlack() {
+  if (!SLACK_DATA.messages.length) {
+    if (typeof showError === "function") showError("No Slack data loaded yet.");
+    return;
+  }
+  _setBtnBusy("btn-download-slack", "btn-download-slack-label", "Preparing…", null);
+
+  const payload = {
+    exportedAt: new Date().toISOString(),
+    source:     "slack",
+    schema:     "comms-dashboard-slack-v1",
+    monthsBack: MONTHS_BACK,
+    isDemo:     IS_DEMO,
+    myUserId:   SLACK_DATA.myUserId,
+    counts: {
+      messages: SLACK_DATA.messages.length,
+      channels: SLACK_DATA.channels.length,
+      users:    SLACK_DATA.users.length
+    },
+    users:    SLACK_DATA.users,
+    channels: SLACK_DATA.channels,
+    messages: SLACK_DATA.messages
+  };
+
+  _downloadJsonBlob(payload, `comms-slack-${_dateStamp()}.json`);
+  _setBtnBusy("btn-download-slack", "btn-download-slack-label", null, "Download Slack");
 }
 
 // ════════════════════════════════════════════════
