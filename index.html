@@ -5323,6 +5323,7 @@ function initSlider() {
 initSlider();
 init();
 </script>
+<script>/*SLACKFIX_START*/(function(){var MAX_CHANNELS=100,MAX_PAGES=2;if(typeof slackAPI!=='function')return;window.fetchSlackConversations=async function(){var all=[],cursor='';do{var params={types:'public_channel,private_channel,mpim,im',limit:'200'};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.list',params);all.push.apply(all,(data.channels||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';}while(cursor);var mine=all.filter(function(ch){return ch.is_member||ch.is_im||ch.is_mpim;});return mine.slice(0,MAX_CHANNELS);};window.fetchSlackHistory=async function(channelId,oldest){var all=[],cursor='',pages=0;do{var params={channel:channelId,limit:'200',oldest:String(oldest)};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.history',params);all.push.apply(all,(data.messages||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';pages++;}while(cursor&&pages<MAX_PAGES);return all;};})();/*SLACKFIX_END*/</script>
 <script>/*WYW_START*/(function __wywInit(){
   var CUT=4, GRAN=30, THEME='#5b6af9', ROWH=16;
   function pad(n){return String(n).padStart(2,'0');}
@@ -5335,6 +5336,8 @@ init();
   function cellColor(i){if(i<=0)return 'transparent';var c=hexToRgb(THEME);var a=0.08+i*0.87;return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a.toFixed(3)+')';}
   function avg(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:0;}
   function median(a){if(!a.length)return 0;var s=a.slice().sort(function(x,y){return x-y;}),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+  function getDaysOff(){try{return JSON.parse(localStorage.getItem('wyw_daysoff')||'[]');}catch(e){return [];}}
+  window.wywToggleDayOff=function(key){var s=getDaysOff();var i=s.indexOf(key);if(i>=0)s.splice(i,1);else s.push(key);try{localStorage.setItem('wyw_daysoff',JSON.stringify(s));}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
   function getActivities(){
     if(typeof buildActivitySignals!=='function')return [];
     var sig; try{sig=buildActivitySignals()||[];}catch(e){return [];}
@@ -5371,21 +5374,25 @@ init();
   window.renderWhenYouWork=function(){
     var sec=document.getElementById('tab-rhythm'); if(!sec)return;
     var acts=getActivities(), b=bucket(acts), rows=b.rows, cols=b.cols;
+    var off=getDaysOff(), offSet={}; off.forEach(function(k){offSet[k]=1;});
+    function isWknd(r){return r.date.getDay()===0||r.date.getDay()===6;}
+    function isExcl(r){return isWknd(r)||offSet[r.key];}
     var first=acts.length?acts[0].ts:null,last=acts.length?acts[acts.length-1].ts:null;
     var daysCovered=(first&&last)?Math.ceil((last-first)/86400000):0;
     var maxSlot=1; rows.forEach(function(r){r.slots.forEach(function(s){if(s.count>maxSlot)maxSlot=s.count;});});
     var maxTot=1; rows.forEach(function(r){if(r.total>maxTot)maxTot=r.total;});
-    var tarr=rows.map(function(r){return {t:r.date.getTime(),tot:r.total};});
-    function trailingAvg(ms){var lo=ms-29*86400000,sum=0,n=0;for(var k=0;k<tarr.length;k++){if(tarr[k].t<=ms&&tarr[k].t>=lo){sum+=tarr[k].tot;n++;}}return n?sum/n:0;}
+    var tarr=rows.map(function(r){return {t:r.date.getTime(),tot:r.total,excl:isExcl(r)};});
+    function trailingAvg(ms){var lo=ms-29*86400000,sum=0,n=0;for(var k=0;k<tarr.length;k++){if(tarr[k].excl)continue;if(tarr[k].t<=ms&&tarr[k].t>=lo){sum+=tarr[k].tot;n++;}}return n?sum/n:0;}
     var minToPct=function(m){return (m/1440)*100;}, slotW=minToPct(GRAN);
     var ticks=[];for(var h=0;h<24;h+=2)ticks.push(h);
     var starts=[],ends=[],durs=[],dow=[[],[],[],[],[],[],[]],hist=new Array(24).fill(0),srcTot={slack:0,email:0,calendar:0},total=0;
     acts.forEach(function(a){hist[a.ts.getHours()]++;srcTot[a.source]++;total++;});
-    rows.forEach(function(r){if(!r.first||!r.last)return;var sM=r.first.ts.getHours()*60+r.first.ts.getMinutes();var eM=r.last.ts.getHours()*60+r.last.ts.getMinutes();if(r.last.ts.getHours()<CUT)eM+=1440;starts.push(sM);ends.push(eM);durs.push(eM-sM);dow[r.date.getDay()].push(sM);});
+    rows.forEach(function(r){if(!r.first||!r.last)return;var sM=r.first.ts.getHours()*60+r.first.ts.getMinutes();var eM=r.last.ts.getHours()*60+r.last.ts.getMinutes();if(r.last.ts.getHours()<CUT)eM+=1440;dow[r.date.getDay()].push(sM);if(isExcl(r))return;starts.push(sM);ends.push(eM);durs.push(eM-sM);});
     var avgStart=avg(starts),avgEnd=avg(ends),medDur=median(durs);
-    var nightOwl=rows.filter(function(r){return r.last&&r.last.ts.getHours()<CUT;}).length;
-    var rsd=rows.slice(0,14).map(function(r){return r.first?r.first.ts.getHours()*60+r.first.ts.getMinutes():null;}).filter(function(x){return x!=null;});
-    var psd=rows.slice(14,28).map(function(r){return r.first?r.first.ts.getHours()*60+r.first.ts.getMinutes():null;}).filter(function(x){return x!=null;});
+    var workRows=rows.filter(function(r){return !isExcl(r)&&r.first&&r.last;});
+    var nightOwl=workRows.filter(function(r){return r.last.ts.getHours()<CUT;}).length;
+    var rsd=workRows.slice(0,14).map(function(r){return r.first.ts.getHours()*60+r.first.ts.getMinutes();});
+    var psd=workRows.slice(14,28).map(function(r){return r.first.ts.getHours()*60+r.first.ts.getMinutes();});
     var trend=avg(rsd)-avg(psd);
     var maxHist=Math.max(1,Math.max.apply(null,hist));
     var html='<div class="wyw-root">';
@@ -5397,47 +5404,48 @@ init();
       '</div></div>';
     html+='<div class="wyw-main"><section class="wyw-pane"><div class="wyw-head"><h2 class="wyw-ctitle">Day shape <span class="wyw-muted">— '+rows.length+' days, '+GRAN+'-min slots, day starts at '+pad(CUT)+':00</span></h2>'+
       '<div class="wyw-legend"><div class="wyw-lg"><span class="wyw-llab">intensity</span><div class="wyw-lscale">'+[0.12,0.3,0.5,0.7,0.95].map(function(a){return '<span class="wyw-sw" style="background:'+cellColor(a)+'"></span>';}).join('')+'</div><span class="wyw-lend wyw-mono">few → many</span></div>'+
-      '<div class="wyw-lg"><span class="wyw-dot wyw-dfirst"></span><span class="wyw-ltext">first activity</span><span class="wyw-dot wyw-dlast"></span><span class="wyw-ltext">last activity</span></div></div></div>';
+      '<div class="wyw-lg"><span class="wyw-dot wyw-dfirst"></span><span class="wyw-ltext">first</span><span class="wyw-dot wyw-dlast"></span><span class="wyw-ltext">last</span><span class="wyw-mtgsw"></span><span class="wyw-ltext">meeting</span></div></div></div>';
     html+='<div class="wyw-scroll"><div class="wyw-barwrap">';
     html+='<div class="wyw-bhead"><div class="wyw-bhlabel"><span class="wyw-corner">DATE</span></div><div class="wyw-bhtrack">';
     ticks.forEach(function(h){var clock=Math.floor((h+CUT)%24);html+='<div class="wyw-htick" style="left:'+minToPct(h*60)+'%"><div class="wyw-htline"></div><span class="wyw-htlabel">'+pad(clock)+'</span></div>';});
     html+='<div class="wyw-htick" style="left:100%"><div class="wyw-htline"></div><span class="wyw-htlabel" style="transform:translateX(-100%)">'+pad(CUT)+'</span></div>';
-    html+='<div class="wyw-cutoff"><span>day starts</span></div>';
+    html+='<div class="wyw-cutoff"></div>';
     html+='</div><div class="wyw-bhmeta"><span class="wyw-corner">START</span><span class="wyw-corner">END</span><span class="wyw-corner">LENGTH</span><span class="wyw-corner">EVENTS · 30d</span></div></div>';
     html+='<div class="wyw-bbody">';
     rows.forEach(function(r){
-      var wknd=(r.date.getDay()===0||r.date.getDay()===6);
+      var wknd=isWknd(r), dayoff=!!offSet[r.key], excl=wknd||dayoff;
       var has=r.first&&r.last;
       var fp=has?minToPct(r.first.minOfDay):0, lp=has?minToPct(r.last.minOfDay):0;
       var dstr='—'; if(has){var mn=r.last.minOfDay-r.first.minOfDay;dstr=Math.floor(mn/60)+'h '+pad(mn%60)+'m';}
       var tavg=trailingAvg(r.date.getTime());
       var evPct=Math.min(100,(r.total/maxTot)*100), avgPct=Math.min(100,(tavg/maxTot)*100), above=r.total>=tavg;
-      html+='<div class="wyw-row'+(wknd?' weekend':'')+(has?'':' empty')+'" style="height:'+(ROWH+6)+'px">';
-      html+='<div class="wyw-rlabel"><span class="wyw-rdate wyw-mono">'+fmtDate(r.date)+'</span></div>';
+      var fillCls=excl?'excl':(above?'above':'below');
+      html+='<div class="wyw-row'+(wknd?' weekend':'')+(dayoff?' wyw-dayoff':'')+(has?'':' empty')+'" style="height:'+(ROWH+6)+'px">';
+      html+='<div class="wyw-rlabel"><span class="wyw-rdate wyw-mono" title="Click to mark/unmark a day off (excluded from averages)" onclick="wywToggleDayOff(\''+r.key+'\')">'+fmtDate(r.date)+(dayoff?' <span class="wyw-offtag">off</span>':'')+'</span></div>';
       html+='<div class="wyw-rtrack" style="height:'+(ROWH+6)+'px"><div class="wyw-baseline"></div>';
       ticks.forEach(function(h){html+='<div class="wyw-grid" style="left:'+minToPct(h*60)+'%"></div>';});
       if(has){
-        r.slots.forEach(function(s,i){if(s.count===0)return;var inten=s.count/maxSlot;html+='<div class="wyw-dens" data-k="'+r.key+'" data-s="'+i+'" style="left:'+minToPct(i*GRAN)+'%;width:'+slotW+'%;height:'+ROWH+'px;background:'+cellColor(inten)+'"></div>';});
+        r.slots.forEach(function(s,i){if(s.count===0)return;var inten=s.count/maxSlot;var mtg=s.byS.calendar>0;html+='<div class="wyw-dens'+(mtg?' has-mtg':'')+'" data-k="'+r.key+'" data-s="'+i+'" style="left:'+minToPct(i*GRAN)+'%;width:'+slotW+'%;height:'+ROWH+'px;background:'+cellColor(inten)+'"></div>';});
         html+='<div class="wyw-cap wyw-cfirst" style="left:'+fp+'%"></div><div class="wyw-cap wyw-clast" style="left:'+lp+'%"></div>';
       }
       html+='</div>';
       html+='<div class="wyw-rmeta"><span class="wyw-rtime wyw-mono">'+(has?fmtTime(r.first.ts):'—')+'</span><span class="wyw-rtime wyw-mono">'+(has?fmtTime(r.last.ts):'—')+'</span><span class="wyw-rdur wyw-mono">'+dstr+'</span>'+
-        '<div class="wyw-evt" title="'+r.total+' events · 30-day avg '+tavg.toFixed(1)+'"><div class="wyw-evt-track"><div class="wyw-evt-fill '+(above?'above':'below')+'" style="width:'+evPct.toFixed(1)+'%"></div><div class="wyw-evt-avg" style="left:'+avgPct.toFixed(1)+'%"></div></div><span class="wyw-evt-num wyw-mono">'+r.total+'</span></div>'+
+        '<div class="wyw-evt" title="'+r.total+' events'+(excl?' (excluded from averages)':' · 30-day avg '+tavg.toFixed(1))+'"><div class="wyw-evt-track"><div class="wyw-evt-fill '+fillCls+'" style="width:'+evPct.toFixed(1)+'%"></div>'+(excl?'':'<div class="wyw-evt-avg" style="left:'+avgPct.toFixed(1)+'%"></div>')+'</div><span class="wyw-evt-num wyw-mono">'+r.total+'</span></div>'+
         '</div>';
       html+='</div>';
     });
     html+='</div></div></div>';
-    html+='<footer class="wyw-foot"><span class="wyw-fnote">Rows are <em>logical</em> days — anything before '+pad(CUT)+':00 is folded back into the previous evening. The EVENTS bar is bold when a day is above its trailing 30-day average and faint when below; the dark tick marks that 30-day average.</span></footer>';
+    html+='<footer class="wyw-foot"><span class="wyw-fnote">Rows are <em>logical</em> days — anything before '+pad(CUT)+':00 folds into the previous evening. Meetings are outlined in green. Weekends are excluded from the averages; <em>click any date</em> to mark it a day off (also excluded). The EVENTS bar is bold above your trailing 30-day average and faint below; the tick marks that average.</span></footer>';
     html+='</section>';
     var dowH='';for(var i=0;i<7;i++){var v=avg(dow[i]);var mn=6*60,mx=13*60;var pct=Math.max(0,Math.min(1,(v-mn)/(mx-mn)));dowH+='<div class="wyw-dowrow"><span class="wyw-dowlab">'+DYS[i]+'</span><div class="wyw-dowtrack"><div class="wyw-dowbar" style="width:'+(pct*100)+'%"></div><span class="wyw-dowtime wyw-mono">'+(v?hhmm(v):'—')+'</span></div></div>';}
     var histH='';hist.forEach(function(v,h){histH+='<div class="wyw-hh" title="'+pad(h)+':00 — '+v+' events"><div class="wyw-hhbar" style="height:'+((v/maxHist)*100)+'%"></div>'+(h%6===0?'<span class="wyw-hhlab wyw-mono">'+pad(h)+'</span>':'')+'</div>';});
     var srcH='';['slack','email','calendar'].forEach(function(s){var c=srcTot[s],pc=total?c/total:0;srcH+='<div class="wyw-srow"><span class="wyw-sdot wyw-'+s+'"></span><span class="wyw-sname">'+s+'</span><div class="wyw-strack"><div class="wyw-sbar wyw-'+s+'" style="width:'+(pc*100)+'%"></div></div><span class="wyw-spct wyw-mono">'+Math.round(pc*100)+'%</span></div>';});
     html+='<aside class="wyw-ins">'+
-      '<section class="wyw-isec"><h3 class="wyw-ih3">Your day shape</h3><div class="wyw-bigs">'+
+      '<section class="wyw-isec"><h3 class="wyw-ih3">Your day shape <span style="text-transform:none;letter-spacing:0;color:#aab;font-weight:400">· weekdays</span></h3><div class="wyw-bigs">'+
       '<div class="wyw-big"><span class="wyw-bslab">avg. start</span><span class="wyw-bsval wyw-mono">'+hhmm(avgStart)+'</span></div>'+
       '<div class="wyw-big"><span class="wyw-bslab">avg. end</span><span class="wyw-bsval wyw-mono">'+hhmm(avgEnd)+'</span></div>'+
       '<div class="wyw-big"><span class="wyw-bslab">typical length</span><span class="wyw-bsval wyw-mono">'+durStr(medDur)+'</span></div>'+
-      '<div class="wyw-big"><span class="wyw-bslab">night-owl nights</span><span class="wyw-bsval wyw-mono">'+nightOwl+'<span class="wyw-bsuf"> / '+rows.length+'</span></span></div>'+
+      '<div class="wyw-big"><span class="wyw-bslab">night-owl nights</span><span class="wyw-bsval wyw-mono">'+nightOwl+'<span class="wyw-bsuf"> / '+workRows.length+'</span></span></div>'+
       '</div></section>'+
       '<section class="wyw-isec"><h3 class="wyw-ih3">Recent trend</h3><p class="wyw-trend"><span class="wyw-tnum wyw-mono">'+(trend>=0?'+':'−')+Math.abs(Math.round(trend))+' min</span> <span class="wyw-tnote">you’ve been starting '+(Math.abs(trend)<5?'about the same':(trend>0?'later':'earlier'))+' the last 2 weeks vs. the 2 before</span></p></section>'+
       '<section class="wyw-isec"><h3 class="wyw-ih3">Start time by weekday</h3><div class="wyw-dowlist">'+dowH+'</div><div class="wyw-dowaxis wyw-mono"><span>06:00</span><span>13:00</span></div></section>'+
@@ -5496,6 +5504,7 @@ init();
     '.wyw-llab{color:var(--ink3);text-transform:uppercase;font-size:10px;letter-spacing:.08em;font-weight:500}.wyw-lscale{display:flex;gap:2px}'+
     '.wyw-sw{width:18px;height:12px;border-radius:2px;border:1px solid var(--line)}.wyw-lend{font-size:11px;color:var(--ink3)}'+
     '.wyw-dot{width:10px;height:10px;border-radius:50%;display:inline-block}.wyw-dfirst{background:var(--first)}.wyw-dlast{background:var(--last)}.wyw-ltext{font-size:12px;color:var(--ink2)}'+
+    '.wyw-mtgsw{width:12px;height:12px;border-radius:2px;box-shadow:inset 0 0 0 1.5px rgba(58,160,107,.9);display:inline-block}'+
     '.wyw-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 24px 16px}'+
     '.wyw-foot{padding:10px 24px 16px;border-top:1px solid var(--line2);background:var(--panel)}.wyw-fnote{font-size:12px;color:var(--ink3)}.wyw-fnote em{font-style:italic;color:var(--ink2)}'+
     '.wyw-barwrap{position:relative;width:100%}'+
@@ -5505,17 +5514,19 @@ init();
     '.wyw-bhmeta{display:grid;grid-template-columns:1fr 1fr 1fr 1.7fr;align-items:flex-end;gap:4px;padding-right:4px}.wyw-bhmeta .wyw-corner{text-align:right}'+
     '.wyw-htick{position:absolute;bottom:0;height:100%}.wyw-htline{position:absolute;bottom:0;left:0;width:1px;height:6px;background:var(--line)}'+
     '.wyw-htlabel{position:absolute;bottom:8px;left:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;color:var(--ink3);transform:translateX(-50%)}'+
-    '.wyw-cutoff{position:absolute;top:0;bottom:0;left:0;width:2px;background:rgba(232,146,58,.4)}.wyw-cutoff span{position:absolute;top:0;left:6px;font-size:9.5px;color:#c47a2e;text-transform:uppercase;letter-spacing:.08em;font-weight:600;white-space:nowrap}'+
+    '.wyw-cutoff{position:absolute;top:0;bottom:0;left:0;width:2px;background:rgba(232,146,58,.55)}'+
     '.wyw-bbody{padding-top:4px}'+
     '.wyw-row{display:grid;grid-template-columns:var(--label-w) minmax(0,1fr) var(--meta-w);column-gap:12px;align-items:center;position:relative;border-bottom:1px solid var(--line2)}'+
-    '.wyw-row.weekend{background:var(--weekend)}'+
-    '.wyw-rlabel{display:flex;align-items:center}.wyw-rdate{font-size:10.5px;color:var(--ink2);font-weight:500}'+
+    '.wyw-row.weekend{background:var(--weekend)}.wyw-row.wyw-dayoff{opacity:.5}'+
+    '.wyw-rlabel{display:flex;align-items:center}.wyw-rdate{font-size:10.5px;color:var(--ink2);font-weight:500;cursor:pointer}.wyw-rdate:hover{color:var(--accent)}'+
+    '.wyw-offtag{font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#b9bdca;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:middle}'+
     '.wyw-rtrack{position:relative;width:100%}.wyw-baseline{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line);transform:translateY(-.5px)}'+
     '.wyw-grid{position:absolute;top:12%;bottom:12%;width:1px;background:rgba(146,150,170,.16);transform:translateX(-.5px)}'+
     '.wyw-dens{position:absolute;top:50%;transform:translateY(-50%);border-radius:1px;mix-blend-mode:multiply;transition:filter .1s}.wyw-dens:hover{filter:brightness(1.15) saturate(1.1);outline:1px solid rgba(30,32,53,.35)}'+
+    '.wyw-dens.has-mtg{box-shadow:inset 0 0 0 1px rgba(58,160,107,.9);border-radius:2px}'+
     '.wyw-cap{position:absolute;top:50%;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1.5px var(--bg)}.wyw-row.weekend .wyw-cap{box-shadow:0 0 0 1.5px var(--weekend)}.wyw-cfirst{background:var(--first)}.wyw-clast{background:var(--last)}'+
     '.wyw-rmeta{display:grid;grid-template-columns:1fr 1fr 1fr 1.7fr;align-items:center;gap:4px;padding-right:4px}.wyw-rmeta>span{text-align:right;font-size:10.5px}.wyw-rtime{color:var(--ink2);font-weight:500}.wyw-rdur{color:var(--ink3)}'+
-    '.wyw-evt{display:flex;align-items:center;gap:6px;justify-content:flex-end}.wyw-evt-track{position:relative;flex:1;height:11px;border-radius:3px;background:#eef0f5;max-width:120px}.wyw-evt-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}.wyw-evt-fill.above{background:rgba(91,106,249,.85)}.wyw-evt-fill.below{background:rgba(91,106,249,.26)}.wyw-evt-avg{position:absolute;top:-2px;bottom:-2px;width:2px;background:#1e2035;opacity:.5;border-radius:1px}.wyw-evt-num{min-width:20px;text-align:right;font-size:10px;color:var(--ink2);font-weight:600}'+
+    '.wyw-evt{display:flex;align-items:center;gap:6px;justify-content:flex-end}.wyw-evt-track{position:relative;flex:1;height:11px;border-radius:3px;background:#eef0f5;max-width:120px}.wyw-evt-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}.wyw-evt-fill.above{background:rgba(91,106,249,.85)}.wyw-evt-fill.below{background:rgba(91,106,249,.26)}.wyw-evt-fill.excl{background:#cdd2de}.wyw-evt-avg{position:absolute;top:-2px;bottom:-2px;width:2px;background:#1e2035;opacity:.5;border-radius:1px}.wyw-evt-num{min-width:20px;text-align:right;font-size:10px;color:var(--ink2);font-weight:600}'+
     '.wyw-ins{background:var(--panel);overflow-y:auto;padding:20px 22px 26px;display:flex;flex-direction:column;gap:22px}'+
     '.wyw-isec{display:flex;flex-direction:column;gap:12px}.wyw-ih3{margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--ink3)}'+
     '.wyw-bigs{display:grid;grid-template-columns:1fr 1fr;gap:14px}.wyw-big{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}'+
@@ -5543,10 +5554,14 @@ init();
     showTab=function(t){var r=o.apply(this,arguments); try{window.ensureConnectPrompts();}catch(e){} if(t==='rhythm'){try{window.renderWhenYouWork();}catch(e){console.error('wyw',e);}} return r;};
     showTab.__wyw=true;
   }
+  if(typeof updateAuthBadges==='function' && !updateAuthBadges.__wyw){
+    var ub=updateAuthBadges;
+    updateAuthBadges=function(){var r=ub.apply(this,arguments); try{window.ensureConnectPrompts();}catch(e){} return r;};
+    updateAuthBadges.__wyw=true;
+  }
   try{window.ensureConnectPrompts();}catch(e){}
   setTimeout(function(){try{window.ensureConnectPrompts();}catch(e){}},1500);
   setTimeout(function(){try{window.ensureConnectPrompts();}catch(e){}},4000);
 })();/*WYW_END*/</script>
-<script>/*SLACKFIX_START*/(function(){var MAX_CHANNELS=100,MAX_PAGES=2;if(typeof slackAPI!=='function')return;window.fetchSlackConversations=async function(){var all=[],cursor='';do{var params={types:'public_channel,private_channel,mpim,im',limit:'200'};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.list',params);all.push.apply(all,(data.channels||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';}while(cursor);var mine=all.filter(function(ch){return ch.is_member||ch.is_im||ch.is_mpim;});return mine.slice(0,MAX_CHANNELS);};window.fetchSlackHistory=async function(channelId,oldest){var all=[],cursor='',pages=0;do{var params={channel:channelId,limit:'200',oldest:String(oldest)};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.history',params);all.push.apply(all,(data.messages||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';pages++;}while(cursor&&pages<MAX_PAGES);return all;};})();/*SLACKFIX_END*/</script>
 </body>
 </html>
