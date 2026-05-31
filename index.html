@@ -5324,391 +5324,6 @@ initSlider();
 init();
 </script>
 <script>/*SLACKFIX_START*/(function(){var MAX_CHANNELS=100,MAX_PAGES=2;if(typeof slackAPI!=='function')return;window.fetchSlackConversations=async function(){var all=[],cursor='';do{var params={types:'public_channel,private_channel,mpim,im',limit:'200'};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.list',params);all.push.apply(all,(data.channels||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';}while(cursor);var mine=all.filter(function(ch){return ch.is_member||ch.is_im||ch.is_mpim;});return mine.slice(0,MAX_CHANNELS);};window.fetchSlackHistory=async function(channelId,oldest){var all=[],cursor='',pages=0;do{var params={channel:channelId,limit:'200',oldest:String(oldest)};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.history',params);all.push.apply(all,(data.messages||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';pages++;}while(cursor&&pages<MAX_PAGES);return all;};})();/*SLACKFIX_END*/</script>
-<script>/*BLOB_FACTOR_START*/(function __bfInit(){
-  function pad(n){return String(n).padStart(2,'0');}
-  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
-  function fmtH(h){var hh=Math.floor(h)%24;var m=Math.round((h-Math.floor(h))*60);return pad(hh)+':'+pad(m);}
-  function fmtHour12(h){var ap=h<12?'am':'pm';var hh=h%12;if(hh===0)hh=12;return hh+ap;}
-  function tierTone(s){return s>=70?'good':s>=40?'mid':'risk';}
-  function tierColor(s){return s>=70?'#3aa06b':s>=40?'#c9931e':'#c44a3e';}
-  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-  var MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function getSig(){try{return buildActivitySignals()||[];}catch(e){return [];}}
-  function getCal(){return (typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];}
-
-  var NAV=[
-    {id:'rhythm',       label:'Rhythm',            sub:'cadence & peak hours',     icon:'🌙'},
-    {id:'engagement',   label:'Engagement Volume', sub:'interactions count',       icon:'💬'},
-    {id:'participation',label:'Participation',     sub:'visibility in meetings',   icon:'👁'},
-    {id:'presence',     label:'Presence',          sub:'time & availability',      icon:'🟢'},
-    {id:'reaction',     label:'Reaction Time',     sub:'effort & responsiveness',  icon:'⚡'},
-    {id:'sentiment',    label:'Sentiment Analysis',sub:'language & mindset',       icon:'💭', placeholder:true},
-    {id:'social',       label:'Social Brand Rep',  sub:'ambassador signal',        icon:'🌟', placeholder:true}
-  ];
-  var DESC={rhythm:'When and how do you work? Cadence, peak hours, and balance.',engagement:'How much do you communicate? Volume across channels and trends.',participation:'Visibility in meetings — frequency, organization role, and group size.',presence:'Time and availability — working hours, consistency, night-owl tendency.',reaction:'Effort and responsiveness — how quickly you reply to messages.',sentiment:'Language and mindset — tone, positivity, and emotional signal.',social:'Ambassador signal — public engagement and brand representation.'};
-
-  function byDay(acts){
-    var m={};
-    acts.forEach(function(s){
-      if(s.source==='email'&&s.type==='received')return;
-      var d=s.ts instanceof Date?s.ts:new Date(s.ts); if(!d||isNaN(d.getTime()))return;
-      var k=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-      var o=m[k]||{first:d,last:d,date:d,wknd:(d.getDay()===0||d.getDay()===6),n:0};
-      if(d<o.first)o.first=d; if(d>o.last)o.last=d; o.n++;
-      m[k]=o;
-    });
-    return m;
-  }
-
-  function computeScores(){
-    var acts=getSig(), cal=getCal();
-    var now=Date.now(), thirty=now-30*86400000, fourW=now-28*86400000;
-    var msgs30=acts.filter(function(s){var t=(s.ts instanceof Date?s.ts:new Date(s.ts)).getTime();return t>=thirty&&(s.source==='slack'||s.source==='email');}).length;
-    var engagement=clamp(Math.round(35+(msgs30-100)/4),0,100);
-    var mtgs4=cal.filter(function(m){var d=m.start instanceof Date?m.start:new Date(m.start);return d&&d.getTime()>=fourW;});
-    var perWeek=mtgs4.length/4;
-    var participation=clamp(Math.round(perWeek*4+20),0,100);
-    var bd=byDay(acts);
-    var weekdays=Object.keys(bd).map(function(k){return bd[k];}).filter(function(o){return !o.wknd;});
-    var spans=weekdays.map(function(o){var h=(o.last-o.first)/3600000;return h>0?h:0;});
-    var avgSpan=spans.length?spans.reduce(function(a,b){return a+b;},0)/spans.length:0;
-    var presence=clamp(Math.round((avgSpan/9)*70+15),0,100);
-    var starts=weekdays.map(function(o){return o.first.getHours()+o.first.getMinutes()/60;});
-    var mean=starts.length?starts.reduce(function(a,b){return a+b;},0)/starts.length:9;
-    var variance=starts.length?starts.reduce(function(a,b){return a+(b-mean)*(b-mean);},0)/starts.length:0;
-    var std=Math.sqrt(variance);
-    var rhythm=clamp(Math.round(100-std*15),30,100);
-    var recE=acts.filter(function(s){return s.source==='email'&&s.type==='received';}).map(function(s){return (s.ts instanceof Date?s.ts:new Date(s.ts)).getTime();}).sort(function(a,b){return a-b;});
-    var sentE=acts.filter(function(s){return s.source==='email'&&s.type==='sent';}).map(function(s){return (s.ts instanceof Date?s.ts:new Date(s.ts)).getTime();}).sort(function(a,b){return a-b;});
-    var gaps=[];
-    if(recE.length&&sentE.length){
-      var j=0;
-      recE.forEach(function(rt){
-        while(j<sentE.length-1 && sentE[j]<rt) j++;
-        var st=sentE[j];
-        if(st && st>rt && st-rt<24*3600000){ gaps.push((st-rt)/3600000); }
-      });
-    }
-    gaps.sort(function(a,b){return a-b;});
-    var medianH=gaps.length?gaps[Math.floor(gaps.length/2)]:null;
-    var reaction = medianH!=null ? clamp(Math.round(100-medianH*5),20,100) : 60;
-    return {rhythm:rhythm, engagement:engagement, participation:participation, presence:presence, reaction:reaction, sentiment:88, social:23, _meta:{msgs30:msgs30,perWeek:perWeek,avgSpan:avgSpan,medianH:medianH}};
-  }
-
-  var state={active:'rhythm'};
-  window.bfNav=function(id){state.active=id;renderShell();};
-  window.bfEngagementChannel=function(c){state.engChannel=c;renderShell();};
-
-  function renderShell(){
-    var dash=document.getElementById('dashboard'); if(!dash)return;
-    var bf=document.getElementById('bf-app');
-    if(!bf){bf=document.createElement('div');bf.id='bf-app';bf.className='bf-root';dash.appendChild(bf);}
-    var scores=computeScores();
-    var overall=Math.round(NAV.reduce(function(s,n){return s+(scores[n.id]||0);},0)/NAV.length);
-    var bftone=tierTone(overall);
-    var navItem=NAV.find(function(n){return n.id===state.active;})||NAV[0];
-    var navHtml=NAV.map(function(n,i){
-      var s=scores[n.id]||0, t=tierTone(s), c=tierColor(s), ac=state.active===n.id;
-      return '<button class="bf-navitem'+(ac?' bf-active':'')+'" onclick="bfNav(\''+n.id+'\')">'
-        +'<span class="bf-navnum">'+pad(i+1)+'</span>'
-        +'<span class="bf-navicon"><span>'+n.icon+'</span></span>'
-        +'<span class="bf-navtext"><span class="bf-navlabel">'+n.label+'</span><span class="bf-navsub">'+n.sub+(n.placeholder?' <span class="bf-pl-mini">placeholder</span>':'')+'</span></span>'
-        +'<span class="bf-navscore"><span class="bf-navnum2 bf-tone-'+t+'">'+s+'</span><span class="bf-navbar"><span style="width:'+s+'%;background:'+c+'"></span></span></span>'
-      +'</button>';
-    }).join('');
-    var isDemo = window.AUTH_STATE && window.AUTH_STATE.microsoft && window.AUTH_STATE.slack && (function(){try{return /demo/i.test(document.body.innerText.slice(0,500));}catch(e){return false;}})();
-    bf.innerHTML=''
-     +'<header class="bf-topbar"><div class="bf-brand">'
-      +'<div class="bf-logo">😺</div>'
-      +'<div class="bf-brandtext"><div class="bf-brandname">Comms Dashboard</div><div class="bf-brandsub bf-mono">BLOB FACTOR · REVIEW WINDOW · LAST 28 DAYS</div></div>'
-      +(isDemo?'<span class="bf-demobadge bf-mono">DEMO MODE</span>':'')
-     +'</div><div class="bf-topright">'
-      +'<button class="bf-iconbtn" onclick="alert(\'Settings: open the Rhythm tab to access toggles.\')" title="Settings">⚙</button>'
-      +'<button class="bf-signout" onclick="signOut()">Sign out</button>'
-     +'</div></header>'
-     +'<div class="bf-body"><aside class="bf-side">'
-      +'<div class="bf-blob bf-tone-'+bftone+'">'
-       +'<div class="bf-blob-row"><div class="bf-blob-label bf-mono">BLOB FACTOR</div></div>'
-       +'<div class="bf-blob-score"><span class="bf-mono bf-big">'+overall+'</span><span class="bf-mono bf-of">/ 100</span></div>'
-       +'<div class="bf-blob-status bf-mono"><span class="bf-dot"></span>'+(bftone==='good'?'on track':bftone==='mid'?'monitor':'at risk')+' · '+NAV.length+' signals tracked</div>'
-      +'</div>'
-      +'<div class="bf-signals-label bf-mono">SIGNALS</div>'
-      +'<nav class="bf-nav">'+navHtml+'</nav>'
-     +'</aside>'
-     +'<main class="bf-main">'
-      +'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
-      +'<div class="bf-tiles">'+renderTiles()+'</div>'
-      +'<div class="bf-signal-head bf-mono"><span style="font-family:inherit;font-size:14px">'+navItem.icon+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>'
-      +'<div class="bf-signal-pane" id="bf-pane">'+renderSignal(state.active, scores)+'</div>'
-     +'</main></div>';
-    document.body.classList.add('bf-on');
-    if(state.active==='rhythm') installRhythm();
-  }
-
-  function renderTiles(){
-    var acts=getSig(), cal=getCal();
-    var total=acts.length, sent=acts.filter(function(s){return s.type==='sent';}).length, rec=acts.filter(function(s){return s.type==='received';}).length;
-    var hist=new Array(24).fill(0), dow=new Array(7).fill(0);
-    acts.forEach(function(s){var d=s.ts instanceof Date?s.ts:new Date(s.ts);if(d&&!isNaN(d.getTime())){hist[d.getHours()]++;dow[d.getDay()]++;}});
-    var bh=hist.indexOf(Math.max.apply(null,hist));
-    var bd=dow.indexOf(Math.max.apply(null,dow));
-    var firstT=acts.length?(acts[0].ts instanceof Date?acts[0].ts:new Date(acts[0].ts)).getTime():Date.now();
-    var weeks=Math.max(1, Math.ceil((Date.now()-firstT)/(7*86400000)));
-    var mtgPerWeek = cal.length ? (cal.length/weeks).toFixed(1) : '0';
-    var tiles=[
-      {label:'Messages', hero:total.toLocaleString(), sub:'all sources combined'},
-      {label:'Sent',     hero:sent.toLocaleString(),  sub:Math.round(sent/Math.max(1,total)*100)+'% of total'},
-      {label:'Received', hero:rec.toLocaleString(),   sub:Math.round(rec/Math.max(1,total)*100)+'% of total'},
-      {label:'Busiest Day',  hero:DOW[bd],            sub:'most activity'},
-      {label:'Busiest Hour', hero:fmtHour12(bh),      sub:'peak activity time'},
-      {label:'Meetings / wk',hero:mtgPerWeek,         sub:cal.length+' total over '+weeks+'w'}
-    ];
-    return tiles.map(function(t){
-      return '<div class="bf-tile"><div class="bf-tile-label bf-mono">'+t.label+'</div><div class="bf-tile-hero">'+t.hero+'</div><div class="bf-tile-sub">'+t.sub+'</div></div>';
-    }).join('');
-  }
-
-  function renderSignal(id, scores){
-    var idx=NAV.findIndex(function(n){return n.id===id;});
-    var nav=NAV[idx];
-    var score=scores[id];
-    var color=tierColor(score);
-    var head=''
-      +'<div class="bf-sigcard bf-sighead" style="border-color:'+(score>=70?'#cfe6d8':score>=40?'#f1e4be':'#f0c9c1')+'">'
-       +'<div class="bf-sigmeta bf-mono">'+pad(idx+1)+' / '+pad(NAV.length)+' · BLOB FACTOR</div>'
-       +'<div class="bf-sigtitle">'+nav.label+'</div>'
-       +'<div class="bf-sigdesc">'+DESC[id]+'</div>'
-       +'<div class="bf-sigscore"><div class="bf-sigscore-label bf-mono">SUB-<br/>SCORE<br/>/ 100</div><div class="bf-sigscore-circle" style="background:'+color+'">'+score+'</div></div>'
-      +'</div>';
-    var body='';
-    if(id==='rhythm') body=renderRhythm();
-    else if(id==='engagement') body=renderEngagement(scores);
-    else if(id==='participation') body=renderParticipation(scores);
-    else if(id==='presence') body=renderPresence(scores);
-    else if(id==='reaction') body=renderReaction(scores);
-    else body=renderFullPlaceholder(id);
-    return head+body;
-  }
-
-  function renderRhythm(){
-    return '<div class="bf-rhythm-wrap"><div id="bf-rhythm-slot"></div></div>';
-  }
-  function installRhythm(){
-    var slot=document.getElementById('bf-rhythm-slot'); if(!slot)return;
-    var tab=document.getElementById('tab-rhythm');
-    if(!tab){ tab=document.createElement('section'); tab.id='tab-rhythm'; tab.className='tab-section active'; tab.setAttribute('data-tab','rhythm'); slot.appendChild(tab); }
-    else if(tab.parentNode!==slot){ slot.appendChild(tab); }
-    tab.style.display='block'; tab.classList.add('active');
-    try{ if(typeof window.renderWhenYouWork==='function') window.renderWhenYouWork(); }catch(e){console.error('rhythm',e);}
-  }
-
-  function renderEngagement(scores){
-    var acts=getSig();
-    var now=Date.now(), thirty=now-30*86400000;
-    var ch=state.engChannel||'all';
-    var fil=acts.filter(function(s){var t=(s.ts instanceof Date?s.ts:new Date(s.ts)).getTime();if(t<thirty)return false;if(ch==='all') return s.source==='slack'||s.source==='email';return s.source===ch;});
-    var n=fil.length;
-    var days=new Array(30).fill(0);
-    fil.forEach(function(s){var t=(s.ts instanceof Date?s.ts:new Date(s.ts)).getTime();var di=29-Math.floor((now-t)/86400000);if(di>=0&&di<30)days[di]++;});
-    var max=Math.max(1, Math.max.apply(null,days));
-    var w=600, h=80;
-    var pts=days.map(function(v,i){return [(i/(days.length-1))*w, h-(v/max)*(h-12)-4];});
-    var pd='M'+pts.map(function(p){return p[0].toFixed(1)+','+p[1].toFixed(1);}).join(' L');
-    var ad=pd+' L'+w+','+h+' L0,'+h+' Z';
-    var sparkline='<svg viewBox="0 0 '+w+' '+h+'" preserveAspectRatio="none" style="width:100%;height:'+h+'px"><path d="'+ad+'" fill="rgba(58,160,107,.12)"/><path d="'+pd+'" fill="none" stroke="#3aa06b" stroke-width="2"/></svg>';
-    var chip=function(k,lab){return '<button class="bf-chip'+(ch===k?' bf-active':'')+'" onclick="bfEngagementChannel(\''+k+'\')">'+lab+'</button>';};
-    return ''
-     +'<div class="bf-sig-grid">'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">MESSAGES · LAST 30 DAYS <span class="bf-channel-tabs">'+chip('all','All')+chip('email','Emails')+chip('slack','Slack')+'</span></div>'
-       +'<div class="bf-card-hero"><span class="bf-mono bf-huge">'+n.toLocaleString()+'</span><span class="bf-card-unit">messages</span></div>'
-       +'<div class="bf-sparkline">'+sparkline+'</div></div>'
-      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label bf-mono">PRO- VS RE-ACTIVE <span class="bf-pl-tag">placeholder</span></div>'
-       +'<div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">% proactive</span></div>'
-       +'<div class="bf-prbar"><div class="bf-prbar-fill" style="width:15%"></div></div>'
-       +'<div class="bf-prbar-labels bf-mono"><span>Proactive</span><span>Reactive</span></div></div>'
-     +'</div>'
-     +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label bf-mono">PLATFORM USAGE STATS <span class="bf-pl-tag">placeholder</span></div>'
-      +'<div class="bf-platforms">'+['Outlook','Salesforce','Word','GitHub','Excel','Zoom','Notion','Figma'].map(function(p){return '<div class="bf-pf"><div class="bf-pf-name">'+p+'</div><div class="bf-pf-n"><span class="bf-mono">—</span> <span class="bf-pf-sub">interactions</span></div></div>';}).join('')+'</div></div>';
-  }
-
-  function renderParticipation(scores){
-    var cal=getCal();
-    var now=Date.now(), fourW=now-28*86400000;
-    var r=cal.filter(function(m){var d=m.start instanceof Date?m.start:new Date(m.start);return d&&d.getTime()>=fourW;});
-    var perWeek=(r.length/4).toFixed(1);
-    var org=r.filter(function(m){return m.isOrganizer;}).length;
-    var orgPct=r.length?Math.round(org/r.length*100):0;
-    var avgAtt=r.length?(r.reduce(function(a,m){return a+(m.attendeeCount||0);},0)/r.length).toFixed(1):'0';
-    var ext=r.filter(function(m){return m.hasExternal;}).length;
-    var extPct=r.length?Math.round(ext/r.length*100):0;
-    var rec=r.filter(function(m){return m.isRecurring;}).length;
-    var recPct=r.length?Math.round(rec/r.length*100):0;
-    return ''
-     +'<div class="bf-sig-grid bf-grid-4">'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">MEETINGS / WEEK</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+perWeek+'</span></div><div class="bf-card-sub">last 4 weeks</div></div>'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">% ORGANIZED</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+orgPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">'+org+' of '+r.length+' meetings</div></div>'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">AVG ATTENDEES</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+avgAtt+'</span></div><div class="bf-card-sub">people per meeting</div></div>'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">EXTERNAL %</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+extPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">with external attendees</div></div>'
-     +'</div>'
-     +'<div class="bf-sig-grid">'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">RECURRING</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+recPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">'+rec+' recurring of '+r.length+' meetings</div></div>'
-      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label bf-mono">FOCUS TIME <span class="bf-pl-tag">placeholder</span></div><div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">hrs/day</span></div><div class="bf-card-sub">gaps between meetings</div></div>'
-     +'</div>'
-     +'<div class="bf-heuristic bf-mono">current heuristic — tune later</div>';
-  }
-
-  function renderPresence(scores){
-    var acts=getSig();
-    var bd=byDay(acts);
-    var days=Object.keys(bd).map(function(k){return bd[k];}).filter(function(o){return !o.wknd;});
-    var avgStart=days.length?days.reduce(function(a,o){return a+o.first.getHours()+o.first.getMinutes()/60;},0)/days.length:0;
-    var avgEnd=days.length?days.reduce(function(a,o){var h=o.last.getHours()+o.last.getMinutes()/60;return a+(h<4?h+24:h);},0)/days.length:0;
-    var avgHrs=avgEnd-avgStart;
-    var hpw=avgHrs*5;
-    var no=days.filter(function(o){return o.last.getHours()<4;}).length;
-    var noPct=days.length?Math.round(no/days.length*100):0;
-    return ''
-     +'<div class="bf-sig-grid bf-grid-4">'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">TYPICAL START</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+fmtH(avgStart)+'</span></div><div class="bf-card-sub">weekdays</div></div>'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">TYPICAL END</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+fmtH(avgEnd)+'</span></div><div class="bf-card-sub">weekdays</div></div>'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">HOURS / WEEK</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+hpw.toFixed(1)+'</span></div><div class="bf-card-sub">avg working hours</div></div>'
-      +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">NIGHT-OWL %</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+noPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">'+no+' / '+days.length+' weekdays past 04:00</div></div>'
-     +'</div>'
-     +'<div class="bf-sigcard"><div class="bf-card-label bf-mono">DEEP DIVE</div><div style="font-size:13px;color:var(--ink-2);margin-top:6px">For the full daily breakdown of when you start and end each day, see the <a href="#" onclick="bfNav(\'rhythm\');return false" style="color:var(--ink);font-weight:500">Rhythm signal</a>.</div></div>'
-     +'<div class="bf-heuristic bf-mono">current heuristic — tune later</div>';
-  }
-
-  function renderReaction(scores){
-    var med=scores._meta && scores._meta.medianH;
-    var medStr= med!=null ? (med<1 ? Math.round(med*60)+'min' : med.toFixed(1)+'h') : '—';
-    var hasData = med!=null;
-    return ''
-     +'<div class="bf-sig-grid bf-grid-3">'
-      +'<div class="bf-sigcard'+(hasData?'':' bf-placeholder')+'"><div class="bf-card-label bf-mono">MEDIAN RESPONSE'+(hasData?'':' <span class="bf-pl-tag">no data</span>')+'</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+medStr+'</span></div><div class="bf-card-sub">to inbound emails (heuristic pairing)</div></div>'
-      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label bf-mono">SAME-DAY REPLIES <span class="bf-pl-tag">placeholder</span></div><div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">vs. expected baseline</div></div>'
-      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label bf-mono">FOLLOW-UP DEPTH <span class="bf-pl-tag">placeholder</span></div><div class="bf-card-hero"><span class="bf-mono bf-huge">—</span></div><div class="bf-card-sub">avg thread depth</div></div>'
-     +'</div>'
-     +'<div class="bf-heuristic bf-mono">current heuristic — accurate per-sender pairing comes when emails store sender metadata server-side</div>';
-  }
-
-  function renderFullPlaceholder(id){
-    var msg = id==='sentiment'
-      ? 'Sentiment requires reading message content. The current architecture stores only metadata (timestamps, sources, types) — never message bodies — so this signal stays dark. Enable opt-in content storage server-side to light it up.'
-      : 'Social Brand Rep tracks public engagement and brand representation across external surfaces. No data source connected yet. Future: GitHub activity, LinkedIn posts, public Slack/PR mentions.';
-    return '<div class="bf-sigcard bf-placeholder bf-pl-big"><div class="bf-pl-tag bf-bigtag bf-mono">PLACEHOLDER</div><div class="bf-pl-msg">'+msg+'</div></div>';
-  }
-
-  if(!document.getElementById('bf-css')){
-    if(!document.getElementById('bf-font')){var fl=document.createElement('link');fl.id='bf-font';fl.rel='stylesheet';fl.href='https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap';document.head.appendChild(fl);}
-    var st=document.createElement('style'); st.id='bf-css';
-    st.textContent=
-    'body.bf-on header:not(.bf-topbar), body.bf-on #main-tab-bar, body.bf-on main > section.tab-section { display: none !important; }'+
-    'body.bf-on #dashboard { padding: 0 !important; max-width: none !important; margin: 0 !important; background: var(--bf-bg, #f1f3f7); }'+
-    'body.bf-on #dashboard main { padding: 0 !important; max-width: none !important; margin: 0 !important; display: block !important; }'+
-    '.bf-root { --bf-bg:#f1f3f7; --surface:#fff; --surface-2:#f8f9fb; --ink:#15171c; --ink-2:#43464f; --ink-3:#82858f; --ink-4:#b5b8c2; --line:#e4e7ee; --line-2:#eef0f5; --green:#3aa06b; --green-soft:#dff0e3; --red:#c44a3e; --red-soft:#f7dcd6; --amber:#c9931e; --amber-soft:#f6e8c8; --cream:#f3ecdc; --cream-deep:#e6dbc0; --cream-ink:#5d4f33; font-family:"Geist",ui-sans-serif,system-ui,sans-serif; background:var(--bf-bg); color:var(--ink); min-height:100vh; }'+
-    '.bf-mono { font-family:"Geist Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; letter-spacing:-.005em; }'+
-    '.bf-topbar { display:flex; align-items:center; justify-content:space-between; padding:14px 28px; background:var(--surface); border-bottom:1px solid var(--line); position:sticky; top:0; z-index:5; }'+
-    '.bf-brand { display:flex; align-items:center; gap:14px; }'+
-    '.bf-logo { width:32px; height:32px; border-radius:8px; background:#15171c; display:flex; align-items:center; justify-content:center; color:#f1cf6f; font-size:18px; }'+
-    '.bf-brandname { font-size:15px; font-weight:600; letter-spacing:-.01em; }'+
-    '.bf-brandsub { font-size:10px; color:var(--ink-3); letter-spacing:.06em; text-transform:uppercase; margin-top:2px; }'+
-    '.bf-demobadge { padding:4px 10px; border-radius:999px; background:var(--amber-soft); color:#9c6f0c; font-size:11px; font-weight:600; letter-spacing:.04em; margin-left:6px; }'+
-    '.bf-topright { display:flex; align-items:center; gap:10px; }'+
-    '.bf-iconbtn { width:36px; height:36px; border-radius:10px; border:1px solid var(--line); background:var(--surface); cursor:pointer; font-size:15px; }'+
-    '.bf-signout { padding:8px 14px; border-radius:10px; border:1px solid var(--line); background:var(--surface); cursor:pointer; font-family:inherit; font-size:13px; }'+
-    '.bf-body { display:grid; grid-template-columns:288px 1fr; max-width:1480px; margin:0 auto; min-height:calc(100vh - 65px); }'+
-    '.bf-side { border-right:1px solid var(--line); padding:20px 14px 80px 20px; }'+
-    '.bf-blob { background:var(--cream); border:1px solid var(--cream-deep); border-radius:14px; padding:18px; position:relative; overflow:hidden; }'+
-    '.bf-blob::after { content:""; position:absolute; top:-30px; right:-22px; width:110px; height:110px; border-radius:50%; background:rgba(0,0,0,.05); }'+
-    '.bf-blob-label { font-size:10px; color:var(--cream-ink); letter-spacing:.1em; text-transform:uppercase; font-weight:600; }'+
-    '.bf-blob-score { margin-top:6px; display:flex; align-items:baseline; gap:4px; position:relative; z-index:1; }'+
-    '.bf-blob-score .bf-big { font-size:48px; font-weight:500; letter-spacing:-.03em; color:var(--ink); line-height:1; }'+
-    '.bf-blob-score .bf-of { font-size:14px; color:var(--ink-3); }'+
-    '.bf-blob-status { margin-top:10px; display:flex; align-items:center; gap:6px; font-size:11px; color:var(--ink-2); }'+
-    '.bf-blob-status .bf-dot { width:8px; height:8px; border-radius:50%; background:var(--amber); display:inline-block; }'+
-    '.bf-blob.bf-tone-good .bf-dot { background:var(--green); }'+
-    '.bf-blob.bf-tone-risk .bf-dot { background:var(--red); }'+
-    '.bf-signals-label { font-size:10px; color:var(--ink-3); letter-spacing:.1em; text-transform:uppercase; padding:18px 6px 8px; }'+
-    '.bf-nav { display:flex; flex-direction:column; gap:6px; }'+
-    '.bf-navitem { display:grid; grid-template-columns:22px 32px 1fr auto; align-items:center; gap:10px; padding:10px 12px; border-radius:10px; border:1px solid transparent; background:transparent; cursor:pointer; text-align:left; font-family:inherit; }'+
-    '.bf-navitem:hover { background:rgba(255,255,255,.6); }'+
-    '.bf-navitem.bf-active { background:var(--surface); border-color:var(--ink-4); box-shadow:0 1px 0 rgba(0,0,0,.02),0 8px 22px -16px rgba(0,0,0,.2); }'+
-    '.bf-navnum { font-size:10px; color:var(--ink-3); letter-spacing:.05em; }'+
-    '.bf-navicon { width:32px; height:32px; border-radius:8px; display:flex; align-items:center; justify-content:center; background:var(--surface-2); border:1px solid var(--line); font-size:15px; }'+
-    '.bf-navtext { display:flex; flex-direction:column; gap:2px; min-width:0; }'+
-    '.bf-navlabel { font-size:13px; font-weight:500; color:var(--ink-2); line-height:1.2; }'+
-    '.bf-navsub { font-size:10px; color:var(--ink-3); }'+
-    '.bf-pl-mini { display:inline-block; padding:1px 5px; border-radius:3px; background:var(--ink-4); color:#fff; font-size:8px; letter-spacing:.04em; margin-left:4px; vertical-align:middle; }'+
-    '.bf-navscore { display:flex; flex-direction:column; align-items:flex-end; gap:4px; }'+
-    '.bf-navnum2 { font-size:14px; font-weight:600; letter-spacing:-.01em; }'+
-    '.bf-navbar { width:34px; height:3px; border-radius:999px; background:var(--line-2); position:relative; overflow:hidden; display:block; }'+
-    '.bf-navbar > span { position:absolute; inset:0; border-radius:999px; }'+
-    '.bf-tone-good { color:var(--green); } .bf-tone-mid { color:var(--amber); } .bf-tone-risk { color:var(--red); }'+
-    '.bf-main { padding:20px 28px 80px; min-width:0; }'+
-    '.bf-overview-label { font-size:10px; color:var(--ink-3); letter-spacing:.1em; text-transform:uppercase; padding:0 0 12px; }'+
-    '.bf-tiles { display:grid; grid-template-columns:repeat(6,1fr); gap:14px; margin-bottom:28px; }'+
-    '.bf-tile { background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:14px; }'+
-    '.bf-tile-label { font-size:10px; color:var(--ink-3); letter-spacing:.06em; text-transform:uppercase; }'+
-    '.bf-tile-hero { font-size:24px; font-weight:600; letter-spacing:-.02em; margin:8px 0 4px; }'+
-    '.bf-tile-sub { font-size:11px; color:var(--ink-3); }'+
-    '.bf-signal-head { font-size:11px; color:var(--ink-3); letter-spacing:.08em; padding:12px 0 14px; display:flex; align-items:center; gap:6px; }'+
-    '.bf-signal-label { text-transform:uppercase; }'+
-    '.bf-signal-sub { text-transform:none; letter-spacing:0; color:var(--ink-3); font-size:12px; font-family:Geist,sans-serif; }'+
-    '.bf-sep { color:var(--ink-4); }'+
-    '.bf-signal-pane { display:flex; flex-direction:column; gap:14px; }'+
-    '.bf-sigcard { background:var(--surface); border:1px solid var(--line); border-radius:14px; padding:18px; position:relative; }'+
-    '.bf-sighead { padding:24px 28px; }'+
-    '.bf-sigmeta { font-size:11px; color:var(--ink-3); letter-spacing:.08em; }'+
-    '.bf-sigtitle { font-size:28px; font-weight:600; letter-spacing:-.02em; margin-top:8px; }'+
-    '.bf-sigdesc { font-size:14px; color:var(--ink-2); margin-top:6px; max-width:540px; line-height:1.4; }'+
-    '.bf-sigscore { position:absolute; top:22px; right:24px; display:flex; align-items:center; gap:12px; padding:7px 8px 7px 16px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2); }'+
-    '.bf-sigscore-label { font-size:8.5px; color:var(--ink-3); letter-spacing:.08em; text-align:right; line-height:1.3; text-transform:uppercase; }'+
-    '.bf-sigscore-circle { width:52px; height:52px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:20px; font-weight:600; color:#fff; font-family:"Geist Mono",monospace; }'+
-    '.bf-sig-grid { display:grid; grid-template-columns:1fr 1fr; gap:14px; }'+
-    '.bf-sig-grid.bf-grid-3 { grid-template-columns:repeat(3,1fr); }'+
-    '.bf-sig-grid.bf-grid-4 { grid-template-columns:repeat(4,1fr); }'+
-    '.bf-card-label { font-size:10px; color:var(--ink-3); letter-spacing:.06em; text-transform:uppercase; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }'+
-    '.bf-card-hero { display:flex; align-items:baseline; gap:8px; margin:14px 0 6px; }'+
-    '.bf-huge { font-size:56px; font-weight:300; letter-spacing:-.04em; line-height:1; color:var(--ink); }'+
-    '.bf-card-unit { font-size:13px; color:var(--ink-3); }'+
-    '.bf-card-sub { font-size:11px; color:var(--ink-3); }'+
-    '.bf-channel-tabs { display:inline-flex; margin-left:auto; gap:2px; background:var(--surface-2); padding:3px; border-radius:8px; }'+
-    '.bf-chip { padding:5px 10px; font-size:11px; border:none; background:transparent; border-radius:6px; cursor:pointer; color:var(--ink-3); font-family:inherit; }'+
-    '.bf-chip.bf-active { background:var(--ink); color:#fff; }'+
-    '.bf-placeholder { opacity:.55; background:var(--surface-2); }'+
-    '.bf-pl-tag { display:inline-block; font-size:9px; padding:2px 6px; border-radius:4px; background:var(--ink-4); color:#fff; letter-spacing:.05em; }'+
-    '.bf-pl-big { display:flex; flex-direction:column; gap:14px; padding:40px; opacity:.55; }'+
-    '.bf-bigtag { align-self:flex-start; font-size:11px; padding:4px 10px; }'+
-    '.bf-pl-msg { font-size:14px; color:var(--ink-2); max-width:580px; line-height:1.5; }'+
-    '.bf-prbar { height:8px; background:var(--line-2); border-radius:999px; overflow:hidden; margin-top:10px; }'+
-    '.bf-prbar-fill { height:100%; background:var(--red); }'+
-    '.bf-prbar-labels { display:flex; justify-content:space-between; font-size:11px; color:var(--ink-3); margin-top:6px; }'+
-    '.bf-platforms { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:14px; }'+
-    '.bf-pf { padding:12px; background:var(--surface); border:1px solid var(--line); border-radius:8px; }'+
-    '.bf-pf-name { font-size:12px; color:var(--ink-2); }'+
-    '.bf-pf-n { margin-top:8px; }'+
-    '.bf-pf-n .bf-mono { font-size:22px; font-weight:500; }'+
-    '.bf-pf-sub { font-size:10px; color:var(--ink-3); }'+
-    '.bf-heuristic { font-size:11px; color:var(--ink-3); font-style:italic; padding:6px 4px 0; }'+
-    '.bf-sparkline { margin-top:14px; }'+
-    '.bf-rhythm-wrap { padding:0; overflow:hidden; border:1px solid var(--line); border-radius:14px; background:var(--surface); }'+
-    '#bf-rhythm-slot { width:100%; }'+
-    '#bf-rhythm-slot #tab-rhythm { display:block !important; padding:0 !important; }'+
-    '#bf-rhythm-slot #tab-rhythm .wyw-root { border:none !important; border-radius:0 !important; }';
-    document.head.appendChild(st);
-  }
-
-  if(typeof showScreen==='function' && !showScreen.__bf){
-    var os=showScreen; showScreen=function(n){var r=os.apply(this,arguments); if(n==='dashboard'){try{renderShell();}catch(e){console.error('bf',e);}} return r;};
-    showScreen.__bf=true;
-  }
-  if(typeof updateAuthBadges==='function' && !updateAuthBadges.__bf){
-    var ub=updateAuthBadges; updateAuthBadges=function(){var r=ub.apply(this,arguments); try{renderShell();}catch(e){} return r;};
-    updateAuthBadges.__bf=true;
-  }
-
-  if(document.getElementById('dashboard') && document.getElementById('dashboard').offsetParent!==null){ renderShell(); }
-})();/*BLOB_FACTOR_END*/</script>
 <script>/*BLOB_SETTINGS_START*/(function __bfSettingsInit(){
   if(!document.getElementById('bf-settings-css')){
     var st=document.createElement('style'); st.id='bf-settings-css';
@@ -6187,5 +5802,474 @@ init();
   }
   try{window.ensureConnectPrompts();}catch(e){}
 })();/*WYW_END*/</script>
+<script>/*BLOB_FACTOR_START*/(function __bfInit(){
+  function pad(n){return String(n).padStart(2,'0');}
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function fmtH(h){var hh=Math.floor(h)%24;var m=Math.round((h-Math.floor(h))*60);return pad(hh)+':'+pad(m);}
+  function fmtHour12(h){var ap=h<12?'am':'pm';var hh=h%12;if(hh===0)hh=12;return hh+ap;}
+  function tierTone(s){return s>=70?'good':s>=40?'mid':'risk';}
+  function tierColor(s){return s>=70?'#3aa06b':s>=40?'#c9931e':'#c44a3e';}
+  function avg(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:0;}
+  function stdev(a){if(!a.length)return 0;var m=avg(a),v=a.reduce(function(x,y){return x+(y-m)*(y-m);},0)/a.length;return Math.sqrt(v);}
+  var DOW=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function getSig(){try{return buildActivitySignals()||[];}catch(e){return [];}}
+  function getCal(){return (typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];}
+  function tms(t){return t instanceof Date?t.getTime():new Date(t).getTime();}
+
+  var ICONS={
+    rhythm:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h3l2-7 4 14 2-5h7"/></svg>',
+    engagement:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12c0 4.4-4 8-9 8a10 10 0 0 1-4-.8L3 21l1.8-4.5A8 8 0 0 1 3 12c0-4.4 4-8 9-8s9 3.6 9 8z"/></svg>',
+    participation:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>',
+    presence:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    reaction:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>',
+    sentiment:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.5 2 3.5 2 3.5-2 3.5-2"/><circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/></svg>',
+    social:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v4l13 6V5L3 11z"/><path d="M16 5v16M20 8v10"/></svg>'
+  };
+
+  var NAV=[
+    {id:'rhythm',       label:'Rhythm',            sub:'cadence & peak hours'},
+    {id:'engagement',   label:'Engagement Volume', sub:'interactions count'},
+    {id:'participation',label:'Participation',     sub:'visibility in meetings'},
+    {id:'presence',     label:'Presence',          sub:'time & availability'},
+    {id:'reaction',     label:'Reaction Time',     sub:'effort & responsiveness'},
+    {id:'sentiment',    label:'Sentiment Analysis',sub:'language & mindset', placeholder:true},
+    {id:'social',       label:'Social Brand Rep',  sub:'ambassador signal', placeholder:true}
+  ];
+  var DESC={rhythm:'When and how do you work? Cadence, peak hours, and balance.',engagement:'How much do you communicate? Volume across channels and trends.',participation:'Visibility in meetings — frequency, organization role, and group size.',presence:'Time and availability — working hours, consistency, night-owl tendency.',reaction:'Effort and responsiveness — how quickly you reply to messages.',sentiment:'Language and mindset — tone, positivity, and emotional signal.',social:'Ambassador signal — public engagement and brand representation.'};
+
+  function byDay(acts){
+    var m={};
+    acts.forEach(function(s){
+      if(s.source==='email'&&s.type==='received')return;
+      var d=s.ts instanceof Date?s.ts:new Date(s.ts); if(!d||isNaN(d.getTime()))return;
+      var k=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      var o=m[k]||{first:d,last:d,date:d,wknd:(d.getDay()===0||d.getDay()===6),n:0};
+      if(d<o.first)o.first=d; if(d>o.last)o.last=d; o.n++;
+      m[k]=o;
+    });
+    return m;
+  }
+
+  function scoresIn(acts, cal){
+    var bd=byDay(acts);
+    var weekdays=Object.keys(bd).map(function(k){return bd[k];}).filter(function(o){return !o.wknd;});
+    var starts=weekdays.map(function(o){return o.first.getHours()+o.first.getMinutes()/60;});
+    var rhythm=clamp(Math.round(100-stdev(starts)*15),30,100);
+    var spans=weekdays.map(function(o){var h=(o.last-o.first)/3600000;return h>0?h:0;});
+    var avgSpan=avg(spans);
+    var presence=clamp(Math.round((avgSpan/9)*70+15),0,100);
+    var msgs=acts.filter(function(s){return s.source==='slack'||s.source==='email';}).length;
+    var engagement=clamp(Math.round(35+(msgs-100)/4),0,100);
+    var perWeek=cal.length/4;
+    var participation=clamp(Math.round(perWeek*4+20),0,100);
+    var recE=acts.filter(function(s){return s.source==='email'&&s.type==='received';}).map(function(s){return tms(s.ts);}).sort(function(a,b){return a-b;});
+    var sentE=acts.filter(function(s){return s.source==='email'&&s.type==='sent';}).map(function(s){return tms(s.ts);}).sort(function(a,b){return a-b;});
+    var gaps=[];
+    if(recE.length&&sentE.length){
+      var j=0;
+      recE.forEach(function(rt){while(j<sentE.length-1 && sentE[j]<rt) j++; var st=sentE[j]; if(st && st>rt && st-rt<24*3600000){gaps.push((st-rt)/3600000);}});
+    }
+    gaps.sort(function(a,b){return a-b;});
+    var medianH=gaps.length?gaps[Math.floor(gaps.length/2)]:null;
+    var reaction = medianH!=null ? clamp(Math.round(100-medianH*5),20,100) : 60;
+    return {rhythm:rhythm, engagement:engagement, participation:participation, presence:presence, reaction:reaction, sentiment:88, social:23, _meta:{msgs:msgs, perWeek:perWeek, medianH:medianH}};
+  }
+
+  function computeScores(){
+    var allActs=getSig(), allCal=getCal();
+    var now=Date.now();
+    var current=scoresIn(allActs, allCal);
+    function inWin(arr, getT, from, to){return arr.filter(function(x){var t=getT(x);return t>=from && t<=to;});}
+    function deltaFor(days){
+      var w=days*86400000;
+      var aR=inWin(allActs, function(s){return tms(s.ts);}, now-w, now);
+      var aP=inWin(allActs, function(s){return tms(s.ts);}, now-2*w, now-w);
+      var cR=inWin(allCal, function(m){return tms(m.start);}, now-w, now);
+      var cP=inWin(allCal, function(m){return tms(m.start);}, now-2*w, now-w);
+      var sR=scoresIn(aR, cR), sP=scoresIn(aP, cP);
+      var d={}; Object.keys(sR).forEach(function(k){if(k==='_meta')return;d[k]=sR[k]-sP[k];}); return d;
+    }
+    current._d7=deltaFor(7); current._d30=deltaFor(30); current._d90=deltaFor(90);
+    return current;
+  }
+
+  var state={active:'rhythm'};
+  window.bfNav=function(id){state.active=id;renderShell();};
+  window.bfEngagementChannel=function(c){state.engChannel=c;renderShell();};
+
+  function scoreDeltaChip(label, dv){
+    var positive=dv>=0; var sign=positive?'+':'−'; var ab=Math.abs(Math.round(dv));
+    var tone= ab<1?'neutral':(positive?'good':'bad'); var arrow= ab<1?'·':(positive?'▲':'▼');
+    return '<div class="bf-sd bf-sd-'+tone+'"><span class="bf-sd-label">'+label+'</span><span class="bf-sd-val bf-mono">'+arrow+' '+sign+ab+'</span></div>';
+  }
+
+  function renderShell(){
+    var dash=document.getElementById('dashboard'); if(!dash)return;
+    var bf=document.getElementById('bf-app');
+    if(!bf){bf=document.createElement('div');bf.id='bf-app';bf.className='bf-root';dash.appendChild(bf);}
+    var scores=computeScores();
+    var overall=Math.round(NAV.reduce(function(s,n){return s+(scores[n.id]||0);},0)/NAV.length);
+    var bftone=tierTone(overall);
+    var navItem=NAV.find(function(n){return n.id===state.active;})||NAV[0];
+
+    var navHtml=NAV.map(function(n,i){
+      var s=scores[n.id]||0, t=tierTone(s), c=tierColor(s), ac=state.active===n.id;
+      return '<button class="bf-navitem'+(ac?' bf-active':'')+'" onclick="bfNav(\''+n.id+'\')" style="--tcolor:'+c+'">'
+        +'<span class="bf-navnum">'+pad(i+1)+'</span>'
+        +'<span class="bf-navicon">'+(ICONS[n.id]||'')+'</span>'
+        +'<span class="bf-navtext"><span class="bf-navlabel">'+n.label+'</span><span class="bf-navsub">'+n.sub+(n.placeholder?' <span class="bf-pl-mini">placeholder</span>':'')+'</span></span>'
+        +'<span class="bf-navscore"><span class="bf-navnum2 bf-tone-'+t+'">'+s+'</span><span class="bf-navbar"><span style="width:'+s+'%;background:'+c+'"></span></span></span>'
+      +'</button>';
+    }).join('');
+
+    var isDemo = window.AUTH_STATE && window.AUTH_STATE.microsoft && window.AUTH_STATE.slack && (function(){try{return /demo/i.test(document.body.innerText.slice(0,500));}catch(e){return false;}})();
+
+    bf.innerHTML=''
+     +'<header class="bf-topbar"><div class="bf-brand">'
+      +'<div class="bf-logo">😺</div>'
+      +'<div class="bf-brandtext"><div class="bf-brandname">Comms Dashboard</div><div class="bf-brandsub bf-mono">BLOB FACTOR · REVIEW WINDOW · LAST 28 DAYS</div></div>'
+      +(isDemo?'<span class="bf-demobadge bf-mono">DEMO MODE</span>':'')
+     +'</div><div class="bf-topright">'
+      +'<button class="bf-iconbtn" onclick="bfSettings(true)" title="Settings">⚙</button>'
+      +'<button class="bf-signout" onclick="signOut()">Sign out</button>'
+     +'</div></header>'
+     +'<div class="bf-body"><aside class="bf-side">'
+      +'<div class="bf-blob bf-tone-'+bftone+'">'
+       +'<div class="bf-blob-label bf-mono">BLOB FACTOR</div>'
+       +'<div class="bf-blob-score"><span class="bf-mono bf-big">'+overall+'</span><span class="bf-mono bf-of">/ 100</span></div>'
+       +'<div class="bf-blob-status bf-mono"><span class="bf-dot"></span>'+(bftone==='good'?'on track':bftone==='mid'?'monitor':'at risk')+' · '+NAV.length+' signals tracked</div>'
+      +'</div>'
+      +'<div class="bf-signals-label bf-mono">SIGNALS</div>'
+      +'<nav class="bf-nav">'+navHtml+'</nav>'
+     +'</aside>'
+     +'<main class="bf-main">'
+      +'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
+      +'<div class="bf-tiles">'+renderTiles()+'</div>'
+      +'<div class="bf-signal-head bf-mono"><span class="bf-headicon">'+(ICONS[navItem.id]||'')+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>'
+      +'<div class="bf-signal-pane" id="bf-pane">'+renderSignal(state.active, scores)+'</div>'
+     +'</main></div>';
+
+    document.body.classList.add('bf-on');
+    if(state.active==='rhythm') installRhythm();
+  }
+
+  function renderTiles(){
+    var acts=getSig(), cal=getCal();
+    var total=acts.length, sent=acts.filter(function(s){return s.type==='sent';}).length, rec=acts.filter(function(s){return s.type==='received';}).length;
+    var hist=new Array(24).fill(0), dow=new Array(7).fill(0);
+    acts.forEach(function(s){var d=s.ts instanceof Date?s.ts:new Date(s.ts);if(d&&!isNaN(d.getTime())){hist[d.getHours()]++;dow[d.getDay()]++;}});
+    var bh=hist.indexOf(Math.max.apply(null,hist));
+    var bd=dow.indexOf(Math.max.apply(null,dow));
+    var firstT=acts.length?(acts[0].ts instanceof Date?acts[0].ts:new Date(acts[0].ts)).getTime():Date.now();
+    var weeks=Math.max(1, Math.ceil((Date.now()-firstT)/(7*86400000)));
+    var mtgPerWeek = cal.length ? (cal.length/weeks).toFixed(1) : '0';
+    var tiles=[
+      {label:'Messages', hero:total.toLocaleString(), sub:'all sources combined'},
+      {label:'Sent',     hero:sent.toLocaleString(),  sub:Math.round(sent/Math.max(1,total)*100)+'% of total'},
+      {label:'Received', hero:rec.toLocaleString(),   sub:Math.round(rec/Math.max(1,total)*100)+'% of total'},
+      {label:'Busiest Day',  hero:DOW[bd],            sub:'most activity'},
+      {label:'Busiest Hour', hero:fmtHour12(bh),      sub:'peak activity time'},
+      {label:'Meetings / wk',hero:mtgPerWeek,         sub:cal.length+' total over '+weeks+'w'}
+    ];
+    return tiles.map(function(t){
+      return '<div class="bf-tile"><div class="bf-tile-label bf-mono">'+t.label+'</div><div class="bf-tile-hero">'+t.hero+'</div><div class="bf-tile-sub">'+t.sub+'</div></div>';
+    }).join('');
+  }
+
+  function renderSignal(id, scores){
+    var idx=NAV.findIndex(function(n){return n.id===id;});
+    var nav=NAV[idx];
+    var score=scores[id];
+    var color=tierColor(score);
+    var head=''
+      +'<div class="bf-sigcard bf-sighead" style="border-color:'+(score>=70?'#cfe6d8':score>=40?'#f1e4be':'#f0c9c1')+'">'
+       +'<div class="bf-sigmeta bf-mono">'+pad(idx+1)+' / '+pad(NAV.length)+' · BLOB FACTOR</div>'
+       +'<div class="bf-sigtitle">'+nav.label+'</div>'
+       +'<div class="bf-sigdesc">'+DESC[id]+'</div>'
+       +'<div class="bf-sigscore">'
+         +'<div class="bf-sigscore-circle" style="background:'+color+'">'+score+'</div>'
+         +'<div class="bf-sigscore-label bf-mono">SUB-SCORE<br/>/ 100</div>'
+         +'<div class="bf-sigscore-deltas">'+scoreDeltaChip('7D',scores._d7[id]||0)+scoreDeltaChip('30D',scores._d30[id]||0)+scoreDeltaChip('90D',scores._d90[id]||0)+'</div>'
+       +'</div>'
+      +'</div>';
+    var body='';
+    if(id==='rhythm') body=renderRhythm();
+    else if(id==='engagement') body=renderEngagement(scores);
+    else if(id==='participation') body=renderParticipation(scores);
+    else if(id==='presence') body=renderPresence(scores);
+    else if(id==='reaction') body=renderReaction(scores);
+    else body=renderFullPlaceholder(id);
+    return head+body;
+  }
+
+  function renderRhythm(){return '<div class="bf-rhythm-wrap"><div id="bf-rhythm-slot"></div></div>';}
+  function installRhythm(){
+    var slot=document.getElementById('bf-rhythm-slot'); if(!slot)return;
+    var tab=document.getElementById('tab-rhythm');
+    if(!tab){ tab=document.createElement('section'); tab.id='tab-rhythm'; tab.className='tab-section active'; tab.setAttribute('data-tab','rhythm'); slot.appendChild(tab); }
+    else if(tab.parentNode!==slot){ slot.appendChild(tab); }
+    tab.style.display='block'; tab.classList.add('active');
+    try{ if(typeof window.renderWhenYouWork==='function') window.renderWhenYouWork(); }catch(e){console.error('rhythm',e);}
+  }
+
+  function renderEngagement(scores){
+    var acts=getSig();
+    var now=Date.now(), ninety=now-90*86400000;
+    var ch=state.engChannel||'all';
+    var inRange=acts.filter(function(s){return tms(s.ts)>=ninety;});
+    var fil=inRange.filter(function(s){if(ch==='all') return s.source==='slack'||s.source==='email'; return s.source===ch;});
+    var n=fil.length;
+    var days=new Array(90).fill(0);
+    fil.forEach(function(s){var t=tms(s.ts); var di=89-Math.floor((now-t)/86400000); if(di>=0&&di<90)days[di]++;});
+    function ma(arr, win){return arr.map(function(_,i){var st=Math.max(0,i-win+1); var sl=arr.slice(st,i+1); return avg(sl);});}
+    var ma7=ma(days,7), ma30=ma(days,30), ma90=ma(days,90);
+    var W=720, H=160, maxV=Math.max(1, Math.max.apply(null, days.concat(ma7,ma30,ma90)));
+    function px(i){return (i/89)*W;}
+    function py(v){return H-(v/maxV)*(H-16)-4;}
+    function path(arr){return 'M'+arr.map(function(v,i){return px(i).toFixed(1)+','+py(v).toFixed(1);}).join(' L');}
+    var belowDots=days.map(function(v,i){return v<ma30[i] ? '<circle cx="'+px(i).toFixed(1)+'" cy="'+py(v).toFixed(1)+'" r="3" fill="#c44a3e"/>' : '';}).join('');
+    var sparkline='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:'+H+'px" class="bf-eng-svg">'
+      +'<path d="'+path(days)+' L'+W+','+H+' L0,'+H+' Z" fill="rgba(58,160,107,.08)"/>'
+      +'<path d="'+path(ma90)+'" fill="none" stroke="#7b59c9" stroke-width="2" opacity=".7"/>'
+      +'<path d="'+path(ma30)+'" fill="none" stroke="#5b6af9" stroke-width="1.6" opacity=".85"/>'
+      +'<path d="'+path(ma7)+'" fill="none" stroke="#c9931e" stroke-width="1.4" stroke-dasharray="3 3" opacity=".9"/>'
+      +'<path d="'+path(days)+'" fill="none" stroke="#3aa06b" stroke-width="2"/>'
+      +'<g class="bf-eng-below">'+belowDots+'</g>'
+    +'</svg>';
+    var legend='<div class="bf-eng-legend bf-mono">'
+      +'<span class="bf-eng-leg"><span class="bf-eng-line" style="background:#3aa06b"></span>daily</span>'
+      +'<span class="bf-eng-leg"><span class="bf-eng-line bf-eng-dashed" style="background:#c9931e"></span>MA 7d</span>'
+      +'<span class="bf-eng-leg"><span class="bf-eng-line" style="background:#5b6af9"></span>MA 30d</span>'
+      +'<span class="bf-eng-leg"><span class="bf-eng-line" style="background:#7b59c9"></span>MA 90d</span>'
+      +'<span class="bf-eng-leg"><span class="bf-eng-dot" style="background:#c44a3e"></span>below MA 30d <span class="bf-eng-hint">(hover)</span></span>'
+    +'</div>';
+    var chip=function(k,lab){return '<button class="bf-chip'+(ch===k?' bf-active':'')+'" onclick="bfEngagementChannel(\''+k+'\')">'+lab+'</button>';};
+    var emailDays=new Array(90).fill(0), slackDays=new Array(90).fill(0);
+    inRange.forEach(function(s){var di=89-Math.floor((now-tms(s.ts))/86400000); if(di<0||di>=90)return; if(s.source==='email')emailDays[di]++; if(s.source==='slack')slackDays[di]++;});
+    var eMA=ma(emailDays,7), sMA=ma(slackDays,7);
+    var slackRatio=eMA.map(function(_,i){var t=eMA[i]+sMA[i]; return t>0?sMA[i]/t:0.5;});
+    var pmW=720, pmH=120;
+    function pmx(i){return (i/89)*pmW;}
+    var pmSlackPath='M0,'+pmH+' '+slackRatio.map(function(r,i){return 'L'+pmx(i).toFixed(1)+','+(pmH-r*pmH).toFixed(1);}).join(' ')+' L'+pmW+','+pmH+' Z';
+    var pmEmailPath='M0,0 '+slackRatio.map(function(r,i){return 'L'+pmx(i).toFixed(1)+','+(pmH-r*pmH).toFixed(1);}).join(' ')+' L'+pmW+',0 Z';
+    var pmSvg='<svg viewBox="0 0 '+pmW+' '+pmH+'" preserveAspectRatio="none" style="width:100%;height:'+pmH+'px">'
+      +'<path d="'+pmEmailPath+'" fill="rgba(91,106,249,.55)"/>'
+      +'<path d="'+pmSlackPath+'" fill="rgba(212,102,63,.65)"/>'
+    +'</svg>';
+    var last7Email=inRange.filter(function(s){return s.source==='email'&&tms(s.ts)>=now-7*86400000;}).length;
+    var last7Slack=inRange.filter(function(s){return s.source==='slack'&&tms(s.ts)>=now-7*86400000;}).length;
+    var last7Total=last7Email+last7Slack;
+    var emailPct=last7Total?Math.round(last7Email/last7Total*100):0;
+    var slackPct=100-emailPct;
+    return ''
+     +'<div class="bf-sigcard bf-eng-card">'
+      +'<div class="bf-card-label">MESSAGES · LAST 90 DAYS <span class="bf-channel-tabs">'+chip('all','All')+chip('email','Emails')+chip('slack','Slack')+'</span></div>'
+      +'<div class="bf-card-hero"><span class="bf-mono bf-huge">'+n.toLocaleString()+'</span><span class="bf-card-unit">messages</span></div>'
+      +'<div class="bf-eng-chart">'+sparkline+'</div>'
+      +legend
+     +'</div>'
+     +'<div class="bf-sig-grid">'
+      +'<div class="bf-sigcard"><div class="bf-card-label">PLATFORM MIX · LAST 90 DAYS</div>'
+       +'<div class="bf-pmix-hero"><div class="bf-pmix-stat"><span class="bf-pmix-num bf-mono" style="color:#5b6af9">'+emailPct+'%</span><span class="bf-pmix-lab">Email</span></div><div class="bf-pmix-stat"><span class="bf-pmix-num bf-mono" style="color:#d4663f">'+slackPct+'%</span><span class="bf-pmix-lab">Slack</span></div><div class="bf-pmix-sub">share in last 7 days · 7-day smoothed below</div></div>'
+       +'<div class="bf-pmix-chart">'+pmSvg+'</div>'
+      +'</div>'
+      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">PRO- VS RE-ACTIVE <span class="bf-pl-tag">placeholder</span></div>'
+       +'<div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">% proactive</span></div>'
+       +'<div class="bf-prbar"><div class="bf-prbar-fill" style="width:15%"></div></div>'
+       +'<div class="bf-prbar-labels bf-mono"><span>Proactive</span><span>Reactive</span></div>'
+      +'</div>'
+     +'</div>'
+     +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">PLATFORM USAGE STATS <span class="bf-pl-tag">placeholder</span></div>'
+      +'<div class="bf-platforms">'+['Outlook','Salesforce','Word','GitHub','Excel','Zoom','Notion','Figma'].map(function(p){return '<div class="bf-pf"><div class="bf-pf-name">'+p+'</div><div class="bf-pf-n"><span class="bf-mono">—</span> <span class="bf-pf-sub">interactions</span></div></div>';}).join('')+'</div></div>';
+  }
+
+  function renderParticipation(scores){
+    var cal=getCal();
+    var now=Date.now(), fourW=now-28*86400000;
+    var r=cal.filter(function(m){var d=m.start instanceof Date?m.start:new Date(m.start);return d&&d.getTime()>=fourW;});
+    var perWeek=(r.length/4).toFixed(1);
+    var org=r.filter(function(m){return m.isOrganizer;}).length;
+    var orgPct=r.length?Math.round(org/r.length*100):0;
+    var avgAtt=r.length?(r.reduce(function(a,m){return a+(m.attendeeCount||0);},0)/r.length).toFixed(1):'0';
+    var ext=r.filter(function(m){return m.hasExternal;}).length;
+    var extPct=r.length?Math.round(ext/r.length*100):0;
+    var rec=r.filter(function(m){return m.isRecurring;}).length;
+    var recPct=r.length?Math.round(rec/r.length*100):0;
+    return ''
+     +'<div class="bf-sig-grid bf-grid-4">'
+      +'<div class="bf-sigcard"><div class="bf-card-label">MEETINGS / WEEK</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+perWeek+'</span></div><div class="bf-card-sub">last 4 weeks</div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">% ORGANIZED</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+orgPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">'+org+' of '+r.length+' meetings</div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">AVG ATTENDEES</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+avgAtt+'</span></div><div class="bf-card-sub">people per meeting</div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">EXTERNAL %</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+extPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">with external attendees</div></div>'
+     +'</div>'
+     +'<div class="bf-sig-grid">'
+      +'<div class="bf-sigcard"><div class="bf-card-label">RECURRING</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+recPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">'+rec+' recurring of '+r.length+' meetings</div></div>'
+      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">FOCUS TIME <span class="bf-pl-tag">placeholder</span></div><div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">hrs/day</span></div><div class="bf-card-sub">gaps between meetings</div></div>'
+     +'</div>';
+  }
+
+  function renderPresence(scores){
+    var acts=getSig();
+    var bd=byDay(acts);
+    var days=Object.keys(bd).map(function(k){return bd[k];}).filter(function(o){return !o.wknd;});
+    var avgStart=days.length?days.reduce(function(a,o){return a+o.first.getHours()+o.first.getMinutes()/60;},0)/days.length:0;
+    var avgEnd=days.length?days.reduce(function(a,o){var h=o.last.getHours()+o.last.getMinutes()/60;return a+(h<4?h+24:h);},0)/days.length:0;
+    var avgHrs=avgEnd-avgStart;
+    var hpw=avgHrs*5;
+    var no=days.filter(function(o){return o.last.getHours()<4;}).length;
+    var noPct=days.length?Math.round(no/days.length*100):0;
+    return ''
+     +'<div class="bf-sig-grid bf-grid-4">'
+      +'<div class="bf-sigcard"><div class="bf-card-label">TYPICAL START</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+fmtH(avgStart)+'</span></div><div class="bf-card-sub">weekdays</div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">TYPICAL END</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+fmtH(avgEnd)+'</span></div><div class="bf-card-sub">weekdays</div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">HOURS / WEEK</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+hpw.toFixed(1)+'</span></div><div class="bf-card-sub">avg working hours</div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">NIGHT-OWL %</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+noPct+'</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">'+no+' / '+days.length+' weekdays past 04:00</div></div>'
+     +'</div>'
+     +'<div class="bf-sigcard"><div class="bf-card-label">DEEP DIVE</div><div style="font-size:13px;color:var(--ink-2);margin-top:6px">For the full daily breakdown of when you start and end each day, see the <a href="#" onclick="bfNav(\'rhythm\');return false" style="color:var(--ink);font-weight:500">Rhythm signal</a>.</div></div>';
+  }
+
+  function renderReaction(scores){
+    var med=scores._meta && scores._meta.medianH;
+    var medStr= med!=null ? (med<1 ? Math.round(med*60)+'min' : med.toFixed(1)+'h') : '—';
+    var hasData = med!=null;
+    return ''
+     +'<div class="bf-sig-grid bf-grid-3">'
+      +'<div class="bf-sigcard'+(hasData?'':' bf-placeholder')+'"><div class="bf-card-label">MEDIAN RESPONSE'+(hasData?'':' <span class="bf-pl-tag">no data</span>')+'</div><div class="bf-card-hero"><span class="bf-mono bf-huge">'+medStr+'</span></div><div class="bf-card-sub">to inbound emails (heuristic pairing)</div></div>'
+      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">SAME-DAY REPLIES <span class="bf-pl-tag">placeholder</span></div><div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">%</span></div><div class="bf-card-sub">vs. expected baseline</div></div>'
+      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">FOLLOW-UP DEPTH <span class="bf-pl-tag">placeholder</span></div><div class="bf-card-hero"><span class="bf-mono bf-huge">—</span></div><div class="bf-card-sub">avg thread depth</div></div>'
+     +'</div>';
+  }
+
+  function renderFullPlaceholder(id){
+    var msg = id==='sentiment'
+      ? 'Sentiment requires reading message content. The current architecture stores only metadata (timestamps, sources, types) — never message bodies — so this signal stays dark. Enable opt-in content storage server-side to light it up.'
+      : 'Social Brand Rep tracks public engagement and brand representation across external surfaces. No data source connected yet. Future: GitHub activity, LinkedIn posts, public Slack/PR mentions.';
+    return '<div class="bf-sigcard bf-placeholder bf-pl-big"><div class="bf-pl-tag bf-bigtag bf-mono">PLACEHOLDER</div><div class="bf-pl-msg">'+msg+'</div></div>';
+  }
+
+  if(!document.getElementById('bf-css')){
+    if(!document.getElementById('bf-font')){var fl=document.createElement('link');fl.id='bf-font';fl.rel='stylesheet';fl.href='https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap';document.head.appendChild(fl);}
+    var st=document.createElement('style'); st.id='bf-css';
+    st.textContent=
+    'body.bf-on header:not(.bf-topbar), body.bf-on #main-tab-bar, body.bf-on main > section.tab-section { display: none !important; }'+
+    'body.bf-on #dashboard { padding: 0 !important; max-width: none !important; margin: 0 !important; background: var(--bf-bg, #f1f3f7); }'+
+    'body.bf-on #dashboard main { padding: 0 !important; max-width: none !important; margin: 0 !important; display: block !important; }'+
+    '.bf-root { --bf-bg:#f1f3f7; --surface:#fff; --surface-2:#f8f9fb; --ink:#15171c; --ink-2:#43464f; --ink-3:#82858f; --ink-4:#b5b8c2; --line:#e4e7ee; --line-2:#eef0f5; --green:#3aa06b; --red:#c44a3e; --amber:#c9931e; --cream:#f3ecdc; --cream-deep:#e6dbc0; --cream-ink:#5d4f33; font-family:"Geist",ui-sans-serif,system-ui,sans-serif; background:var(--bf-bg); color:var(--ink); min-height:100vh; }'+
+    '.bf-mono { font-family:"Geist Mono",ui-monospace,monospace; font-variant-numeric:tabular-nums; letter-spacing:-.005em; }'+
+    '.bf-topbar{display:flex;align-items:center;justify-content:space-between;padding:14px 28px;background:var(--surface);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}'+
+    '.bf-brand{display:flex;align-items:center;gap:14px}'+
+    '.bf-logo{width:32px;height:32px;border-radius:8px;background:#15171c;display:flex;align-items:center;justify-content:center;color:#f1cf6f;font-size:18px}'+
+    '.bf-brandname{font-size:15px;font-weight:600;letter-spacing:-.01em}'+
+    '.bf-brandsub{font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;margin-top:2px}'+
+    '.bf-demobadge{padding:4px 10px;border-radius:999px;background:#f6e8c8;color:#9c6f0c;font-size:11px;font-weight:600;letter-spacing:.04em;margin-left:6px}'+
+    '.bf-topright{display:flex;align-items:center;gap:10px}'+
+    '.bf-iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-size:15px}'+
+    '.bf-signout{padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;font-family:inherit;font-size:13px}'+
+    '.bf-body{display:grid;grid-template-columns:288px 1fr;max-width:1480px;margin:0 auto;min-height:calc(100vh - 65px)}'+
+    '.bf-side{border-right:1px solid var(--line);padding:20px 14px 80px 20px}'+
+    '.bf-blob{background:var(--cream);border:1px solid var(--cream-deep);border-radius:14px;padding:18px;position:relative;overflow:hidden}'+
+    '.bf-blob::after{content:"";position:absolute;top:-30px;right:-22px;width:110px;height:110px;border-radius:50%;background:rgba(0,0,0,.05)}'+
+    '.bf-blob-label{font-size:10px;color:var(--cream-ink);letter-spacing:.1em;text-transform:uppercase;font-weight:600}'+
+    '.bf-blob-score{margin-top:6px;display:flex;align-items:baseline;gap:4px;position:relative;z-index:1}'+
+    '.bf-blob-score .bf-big{font-size:48px;font-weight:500;letter-spacing:-.03em;color:var(--ink);line-height:1}'+
+    '.bf-blob-score .bf-of{font-size:14px;color:var(--ink-3)}'+
+    '.bf-blob-status{margin-top:10px;display:flex;align-items:center;gap:6px;font-size:11px;color:var(--ink-2)}'+
+    '.bf-blob-status .bf-dot{width:8px;height:8px;border-radius:50%;background:var(--amber);display:inline-block}'+
+    '.bf-blob.bf-tone-good .bf-dot{background:var(--green)}.bf-blob.bf-tone-risk .bf-dot{background:var(--red)}'+
+    '.bf-signals-label{font-size:10px;color:var(--ink-3);letter-spacing:.1em;text-transform:uppercase;padding:18px 6px 8px}'+
+    '.bf-nav{display:flex;flex-direction:column;gap:6px}'+
+    '.bf-navitem{display:grid;grid-template-columns:22px 32px 1fr auto;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;border:1px solid transparent;background:transparent;cursor:pointer;text-align:left;font-family:inherit}'+
+    '.bf-navitem:hover{background:rgba(255,255,255,.6)}'+
+    '.bf-navitem.bf-active{background:var(--surface);border-color:var(--ink-4);box-shadow:0 1px 0 rgba(0,0,0,.02),0 8px 22px -16px rgba(0,0,0,.2)}'+
+    '.bf-navnum{font-size:10px;color:var(--ink-3);letter-spacing:.05em}'+
+    '.bf-navicon{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;background:var(--surface-2);border:1px solid var(--line);color:var(--ink-2);transition:background .15s,color .15s,border-color .15s}'+
+    '.bf-navicon svg{width:18px;height:18px;display:block}'+
+    '.bf-navitem.bf-active .bf-navicon{background:var(--tcolor);border-color:var(--tcolor);color:#fff}'+
+    '.bf-navtext{display:flex;flex-direction:column;gap:2px;min-width:0}'+
+    '.bf-navlabel{font-size:13px;font-weight:500;color:var(--ink-2);line-height:1.2}'+
+    '.bf-navsub{font-size:10px;color:var(--ink-3)}'+
+    '.bf-pl-mini{display:inline-block;padding:1px 5px;border-radius:3px;background:var(--ink-4);color:#fff;font-size:8px;letter-spacing:.04em;margin-left:4px;vertical-align:middle}'+
+    '.bf-navscore{display:flex;flex-direction:column;align-items:flex-end;gap:4px}'+
+    '.bf-navnum2{font-size:14px;font-weight:600;letter-spacing:-.01em}'+
+    '.bf-navbar{width:34px;height:3px;border-radius:999px;background:var(--line-2);position:relative;overflow:hidden;display:block}'+
+    '.bf-navbar > span{position:absolute;inset:0;border-radius:999px}'+
+    '.bf-tone-good{color:var(--green)}.bf-tone-mid{color:var(--amber)}.bf-tone-risk{color:var(--red)}'+
+    '.bf-main{padding:20px 28px 80px;min-width:0}'+
+    '.bf-overview-label{font-size:10px;color:var(--ink-3);letter-spacing:.1em;text-transform:uppercase;padding:0 0 12px}'+
+    '.bf-tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:28px}'+
+    '.bf-tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}'+
+    '.bf-tile-label{font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}'+
+    '.bf-tile-hero{font-size:24px;font-weight:600;letter-spacing:-.02em;margin:8px 0 4px}'+
+    '.bf-tile-sub{font-size:11px;color:var(--ink-3)}'+
+    '.bf-signal-head{font-size:11px;color:var(--ink-3);letter-spacing:.08em;padding:12px 0 14px;display:flex;align-items:center;gap:6px}'+
+    '.bf-headicon{width:16px;height:16px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink-2)}'+
+    '.bf-headicon svg{width:16px;height:16px}'+
+    '.bf-signal-label{text-transform:uppercase}'+
+    '.bf-signal-sub{text-transform:none;letter-spacing:0;color:var(--ink-3);font-size:12px;font-family:Geist,sans-serif}'+
+    '.bf-sep{color:var(--ink-4)}'+
+    '.bf-signal-pane{display:flex;flex-direction:column;gap:14px}'+
+    '.bf-sigcard{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:18px;position:relative}'+
+    '.bf-sighead{padding:24px 28px}'+
+    '.bf-sigmeta{font-size:11px;color:var(--ink-3);letter-spacing:.08em}'+
+    '.bf-sigtitle{font-size:28px;font-weight:600;letter-spacing:-.02em;margin-top:8px}'+
+    '.bf-sigdesc{font-size:14px;color:var(--ink-2);margin-top:6px;max-width:540px;line-height:1.4}'+
+    '.bf-sigscore{position:absolute;top:22px;right:24px;display:flex;align-items:center;gap:12px}'+
+    '.bf-sigscore-label{font-size:8.5px;color:var(--ink-3);letter-spacing:.08em;text-align:left;line-height:1.3;text-transform:uppercase}'+
+    '.bf-sigscore-circle{width:52px;height:52px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600;color:#fff;font-family:"Geist Mono",monospace}'+
+    '.bf-sigscore-deltas{display:flex;gap:5px;border-left:1px solid var(--line);padding-left:12px;margin-left:4px}'+
+    '.bf-sd{display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 8px;border-radius:6px;background:var(--surface-2);min-width:42px}'+
+    '.bf-sd-label{font-size:8.5px;color:var(--ink-3);letter-spacing:.05em;font-weight:600}'+
+    '.bf-sd-val{font-size:11px;font-weight:600}'+
+    '.bf-sd-good .bf-sd-val{color:var(--green)}.bf-sd-bad .bf-sd-val{color:var(--red)}.bf-sd-neutral .bf-sd-val{color:var(--ink-3)}'+
+    '.bf-sig-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.bf-sig-grid.bf-grid-3{grid-template-columns:repeat(3,1fr)}.bf-sig-grid.bf-grid-4{grid-template-columns:repeat(4,1fr)}'+
+    '.bf-card-label{font-size:10px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase;display:flex;align-items:center;gap:8px;flex-wrap:wrap}'+
+    '.bf-card-hero{display:flex;align-items:baseline;gap:8px;margin:14px 0 6px}'+
+    '.bf-huge{font-size:56px;font-weight:300;letter-spacing:-.04em;line-height:1;color:var(--ink)}'+
+    '.bf-card-unit{font-size:13px;color:var(--ink-3)}'+
+    '.bf-card-sub{font-size:11px;color:var(--ink-3)}'+
+    '.bf-channel-tabs{display:inline-flex;margin-left:auto;gap:2px;background:var(--surface-2);padding:3px;border-radius:8px}'+
+    '.bf-chip{padding:5px 10px;font-size:11px;border:none;background:transparent;border-radius:6px;cursor:pointer;color:var(--ink-3);font-family:inherit}.bf-chip.bf-active{background:var(--ink);color:#fff}'+
+    '.bf-placeholder{opacity:.55;background:var(--surface-2)}'+
+    '.bf-pl-tag{display:inline-block;font-size:9px;padding:2px 6px;border-radius:4px;background:var(--ink-4);color:#fff;letter-spacing:.05em}'+
+    '.bf-pl-big{display:flex;flex-direction:column;gap:14px;padding:40px;opacity:.55}'+
+    '.bf-bigtag{align-self:flex-start;font-size:11px;padding:4px 10px}'+
+    '.bf-pl-msg{font-size:14px;color:var(--ink-2);max-width:580px;line-height:1.5}'+
+    '.bf-prbar{height:8px;background:var(--line-2);border-radius:999px;overflow:hidden;margin-top:10px}'+
+    '.bf-prbar-fill{height:100%;background:var(--red)}'+
+    '.bf-prbar-labels{display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);margin-top:6px}'+
+    '.bf-platforms{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:14px}'+
+    '.bf-pf{padding:12px;background:var(--surface);border:1px solid var(--line);border-radius:8px}'+
+    '.bf-pf-name{font-size:12px;color:var(--ink-2)}'+
+    '.bf-pf-n{margin-top:8px}.bf-pf-n .bf-mono{font-size:22px;font-weight:500}.bf-pf-sub{font-size:10px;color:var(--ink-3)}'+
+    '.bf-eng-card{padding:20px}'+
+    '.bf-eng-chart{margin-top:14px}'+
+    '.bf-eng-svg .bf-eng-below{opacity:0;transition:opacity .15s}'+
+    '.bf-eng-card:hover .bf-eng-svg .bf-eng-below{opacity:1}'+
+    '.bf-eng-legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:11px;color:var(--ink-2)}'+
+    '.bf-eng-leg{display:flex;align-items:center;gap:6px}'+
+    '.bf-eng-line{width:18px;height:2.5px;border-radius:2px;display:inline-block}'+
+    '.bf-eng-line.bf-eng-dashed{background:repeating-linear-gradient(to right,#c9931e 0 4px,transparent 4px 7px)!important;height:2px}'+
+    '.bf-eng-dot{width:8px;height:8px;border-radius:50%;display:inline-block}'+
+    '.bf-eng-hint{color:var(--ink-3);font-size:10px}'+
+    '.bf-pmix-hero{display:flex;align-items:baseline;gap:24px;margin:6px 0 14px;flex-wrap:wrap}'+
+    '.bf-pmix-stat{display:flex;align-items:baseline;gap:6px}'+
+    '.bf-pmix-num{font-size:28px;font-weight:600;letter-spacing:-.02em}'+
+    '.bf-pmix-lab{font-size:12px;color:var(--ink-2)}'+
+    '.bf-pmix-sub{font-size:11px;color:var(--ink-3);margin-left:auto}'+
+    '.bf-pmix-chart{margin-top:6px;border-radius:6px;overflow:hidden}';
+    document.head.appendChild(st);
+  }
+
+  if(typeof showScreen==='function' && !showScreen.__bf){
+    var os=showScreen; showScreen=function(n){var r=os.apply(this,arguments); if(n==='dashboard'){try{renderShell();}catch(e){console.error('bf',e);}} return r;};
+    showScreen.__bf=true;
+  }
+  if(typeof updateAuthBadges==='function' && !updateAuthBadges.__bf){
+    var ub=updateAuthBadges; updateAuthBadges=function(){var r=ub.apply(this,arguments); try{renderShell();}catch(e){} return r;};
+    updateAuthBadges.__bf=true;
+  }
+
+  if(document.getElementById('dashboard') && document.getElementById('dashboard').offsetParent!==null){ renderShell(); }
+})();/*BLOB_FACTOR_END*/</script>
 </body>
 </html>
