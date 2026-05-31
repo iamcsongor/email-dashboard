@@ -5324,284 +5324,6 @@ initSlider();
 init();
 </script>
 <script>/*SLACKFIX_START*/(function(){var MAX_CHANNELS=100,MAX_PAGES=2;if(typeof slackAPI!=='function')return;window.fetchSlackConversations=async function(){var all=[],cursor='';do{var params={types:'public_channel,private_channel,mpim,im',limit:'200'};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.list',params);all.push.apply(all,(data.channels||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';}while(cursor);var mine=all.filter(function(ch){return ch.is_member||ch.is_im||ch.is_mpim;});return mine.slice(0,MAX_CHANNELS);};window.fetchSlackHistory=async function(channelId,oldest){var all=[],cursor='',pages=0;do{var params={channel:channelId,limit:'200',oldest:String(oldest)};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.history',params);all.push.apply(all,(data.messages||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';pages++;}while(cursor&&pages<MAX_PAGES);return all;};})();/*SLACKFIX_END*/</script>
-<script>/*WYW_START*/(function __wywInit(){
-  var CUT=4, GRAN=30, THEME='#5b6af9', ROWH=16;
-  function pad(n){return String(n).padStart(2,'0');}
-  function hhmm(min){var m=((Math.round(min)%1440)+1440)%1440;return pad(Math.floor(m/60))+':'+pad(m%60);}
-  function offMin(d){var m=d.getHours()*60+d.getMinutes()-CUT*60;if(m<0)m+=1440;return m;}
-  function offToClock(off){return hhmm(off+CUT*60);}
-  function durStr(min){var h=Math.floor(min/60),m=Math.round(min%60);return h+'h '+pad(m)+'m';}
-  var DYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-  function fmtDate(d){return DYS[d.getDay()]+' '+MO[d.getMonth()]+' '+pad(d.getDate());}
-  function fmtTime(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
-  function keyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
-  function logDay(d){var lg=new Date(d);if(lg.getHours()<CUT)lg.setDate(lg.getDate()-1);lg.setHours(0,0,0,0);return lg;}
-  function hexToRgb(hex){var h=String(hex).replace('#','');var x=h.length===3?h.replace(/./g,function(c){return c+c;}):h;var n=parseInt(x,16);return [(n>>16)&255,(n>>8)&255,n&255];}
-  function cellColor(i){if(i<=0)return 'transparent';var c=hexToRgb(THEME);var a=0.08+i*0.87;return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a.toFixed(3)+')';}
-  function avg(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:0;}
-  function median(a){if(!a.length)return 0;var s=a.slice().sort(function(x,y){return x-y;}),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
-  function getDaysOff(){try{return JSON.parse(localStorage.getItem('wyw_daysoff')||'[]');}catch(e){return [];}}
-  function getTog(name,def){var v=null;try{v=localStorage.getItem('wyw_tg_'+name);}catch(e){}return v===null?def:(v==='1');}
-  window.wywToggle=function(name,def){var cur=getTog(name,def);try{localStorage.setItem('wyw_tg_'+name,cur?'0':'1');}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
-  window.wywToggleDayOff=function(key){var s=getDaysOff();var i=s.indexOf(key);if(i>=0)s.splice(i,1);else s.push(key);try{localStorage.setItem('wyw_daysoff',JSON.stringify(s));}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
-  function getActivities(){
-    if(typeof buildActivitySignals!=='function')return [];
-    var sig; try{sig=buildActivitySignals()||[];}catch(e){return [];}
-    var out=[];
-    sig.forEach(function(s){
-      if(!s||!s.ts)return;
-      var keep = s.source==='calendar' ? true : (s.type==='sent');
-      if(!keep)return;
-      var d=s.ts instanceof Date?s.ts:new Date(s.ts);
-      if(!d||isNaN(d.getTime()))return;
-      out.push({ts:d,source:s.source,kind:s.type});
-    });
-    out.sort(function(a,b){return a.ts-b.ts;});
-    return out;
-  }
-  function getMeetings(){
-    var CD=(typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];
-    var map={};
-    CD.forEach(function(m){
-      var st=m.start instanceof Date?m.start:new Date(m.start); if(!st||isNaN(st.getTime()))return;
-      var k=keyOf(logDay(st));
-      var dur=m.durationMin|| (m.end? Math.max(10,Math.round(((m.end instanceof Date?m.end:new Date(m.end))-st)/60000)):30);
-      var sMin=offMin(st), eMin=Math.min(1440,sMin+dur);
-      (map[k]=map[k]||[]).push({sMin:sMin,eMin:eMin,dur:dur,subject:m.subject||'(no title)',att:m.attendeeCount,start:st});
-    });
-    return map;
-  }
-  function bucket(acts){
-    var cols=Math.floor(1440/GRAN), days=new Map();
-    acts.forEach(function(a){
-      var local=a.ts, logical=logDay(local);
-      var key=keyOf(logical);
-      var ds=new Date(logical); ds.setHours(CUT,0,0,0);
-      var elapsed=Math.floor((local-ds)/60000);
-      var slot=Math.max(0,Math.min(cols-1,Math.floor(elapsed/GRAN)));
-      var row=days.get(key);
-      if(!row){row={key:key,date:logical,slots:[],first:null,last:null,total:0};for(var i=0;i<cols;i++)row.slots.push({count:0,byS:{slack:0,email:0,calendar:0}});days.set(key,row);}
-      row.slots[slot].count++; row.slots[slot].byS[a.source]++; row.total++;
-      if(row.first==null||slot<row.first.slot)row.first={slot:slot,ts:a.ts,minOfDay:elapsed};
-      if(row.last==null||slot>row.last.slot)row.last={slot:slot,ts:a.ts,minOfDay:elapsed};
-    });
-    return {rows:Array.from(days.values()).sort(function(a,b){return b.date-a.date;}),cols:cols};
-  }
-  window.renderWhenYouWork=function(){
-    var sec=document.getElementById('tab-rhythm'); if(!sec)return;
-    var mtgOn=getTog('mtg',true), showEmpty=getTog('empty',true);
-    var acts=getActivities(), b=bucket(acts), rows=b.rows, cols=b.cols;
-    var mtgByDay=getMeetings();
-    var off=getDaysOff(), offSet={}; off.forEach(function(k){offSet[k]=1;});
-    function isWknd(r){return r.date.getDay()===0||r.date.getDay()===6;}
-    function isExcl(r){return isWknd(r)||offSet[r.key];}
-    var first=acts.length?acts[0].ts:null,last=acts.length?acts[acts.length-1].ts:null;
-    var daysCovered=(first&&last)?Math.ceil((last-first)/86400000):0;
-    if(showEmpty && acts.length){
-      var byk={}; rows.forEach(function(r){byk[r.key]=r;});
-      var cur=logDay(last), endd=logDay(first), full=[], guard=0;
-      while(cur>=endd && guard<3000){var k=keyOf(cur); full.push(byk[k]||{key:k,date:new Date(cur),slots:[],first:null,last:null,total:0}); cur.setDate(cur.getDate()-1); guard++;}
-      rows=full;
-    }
-    var maxSlot=1; rows.forEach(function(r){r.slots.forEach(function(s){if(s.count>maxSlot)maxSlot=s.count;});});
-    var maxTot=1; rows.forEach(function(r){if(r.total>maxTot)maxTot=r.total;});
-    var tarr=rows.map(function(r){return {t:r.date.getTime(),tot:r.total,skip:isExcl(r)||r.total===0};});
-    function trailingAvg(ms){var lo=ms-29*86400000,sum=0,n=0;for(var k=0;k<tarr.length;k++){if(tarr[k].skip)continue;if(tarr[k].t<=ms&&tarr[k].t>=lo){sum+=tarr[k].tot;n++;}}return n?sum/n:0;}
-    var minToPct=function(m){return (m/1440)*100;}, slotW=minToPct(GRAN);
-    var ticks=[];for(var h=0;h<24;h+=2)ticks.push(h);
-    var starts=[],ends=[],durs=[],dow=[[],[],[],[],[],[],[]],hist=new Array(24).fill(0),srcTot={slack:0,email:0,calendar:0},total=0;
-    acts.forEach(function(a){hist[a.ts.getHours()]++;srcTot[a.source]++;total++;});
-    rows.forEach(function(r){if(!r.first||!r.last)return;var sM=r.first.ts.getHours()*60+r.first.ts.getMinutes();var eM=r.last.ts.getHours()*60+r.last.ts.getMinutes();if(r.last.ts.getHours()<CUT)eM+=1440;dow[r.date.getDay()].push(sM);if(isExcl(r))return;starts.push(sM);ends.push(eM);durs.push(eM-sM);});
-    var avgStart=avg(starts),avgEnd=avg(ends),medDur=median(durs);
-    var workRows=rows.filter(function(r){return !isExcl(r)&&r.first&&r.last;});
-    var nightOwl=workRows.filter(function(r){return r.last.ts.getHours()<CUT;}).length;
-    var avgMtg=avg(workRows.map(function(r){return (mtgByDay[r.key]||[]).length;}));
-    var rsd=workRows.slice(0,14).map(function(r){return r.first.ts.getHours()*60+r.first.ts.getMinutes();});
-    var psd=workRows.slice(14,28).map(function(r){return r.first.ts.getHours()*60+r.first.ts.getMinutes();});
-    var trend=avg(rsd)-avg(psd);
-    var maxHist=Math.max(1,Math.max.apply(null,hist));
-    var html='<div class="wyw-root">';
-    html+='<div class="wyw-topbar"><div class="wyw-brand"><span class="wyw-mark"></span><div class="wyw-btext"><span class="wyw-bname">When You Work</span><span class="wyw-btag">A personal rhythm map, since your first signal</span></div></div>'+
-      '<div class="wyw-tstats">'+
-      '<div class="wyw-tstat"><span class="wyw-tslab">first activity</span><span class="wyw-tsval wyw-mono">'+(first?fmtDate(first):'—')+'</span></div>'+
-      '<div class="wyw-tstat"><span class="wyw-tslab">days covered</span><span class="wyw-tsval wyw-mono">'+daysCovered+'</span></div>'+
-      '<div class="wyw-tstat"><span class="wyw-tslab">total events</span><span class="wyw-tsval wyw-mono">'+total.toLocaleString()+'</span></div>'+
-      '</div></div>';
-    html+='<div class="wyw-main"><section class="wyw-pane"><div class="wyw-head"><h2 class="wyw-ctitle">Day shape <span class="wyw-muted">— '+rows.length+' days, '+GRAN+'-min slots, day starts at '+pad(CUT)+':00</span></h2>'+
-      '<div class="wyw-headright">'+
-      '<div class="wyw-legend"><div class="wyw-lg"><span class="wyw-llab">intensity</span><div class="wyw-lscale">'+[0.12,0.3,0.5,0.7,0.95].map(function(a){return '<span class="wyw-sw" style="background:'+cellColor(a)+'"></span>';}).join('')+'</div></div>'+
-      '<div class="wyw-lg"><span class="wyw-dot wyw-dfirst"></span><span class="wyw-bell-mini"></span><span class="wyw-dot wyw-dlast"></span><span class="wyw-ltext">start–end</span><span class="wyw-mtgsw"></span><span class="wyw-ltext">meeting</span></div></div>'+
-      '<div class="wyw-toggles">'+
-      '<label class="wyw-tg"><input type="checkbox" '+(mtgOn?'checked':'')+' onchange="wywToggle(\'mtg\',true)"> Meeting outlines</label>'+
-      '<label class="wyw-tg"><input type="checkbox" '+(showEmpty?'checked':'')+' onchange="wywToggle(\'empty\',true)"> Empty days</label>'+
-      '</div></div></div>';
-    html+='<div class="wyw-scroll"><div class="wyw-barwrap">';
-    html+='<div class="wyw-bhead"><div class="wyw-bhlabel"><span class="wyw-corner">DATE</span></div><div class="wyw-bhtrack">';
-    ticks.forEach(function(h){var clock=Math.floor((h+CUT)%24);html+='<div class="wyw-htick" style="left:'+minToPct(h*60)+'%"><div class="wyw-htline"></div><span class="wyw-htlabel">'+pad(clock)+'</span></div>';});
-    html+='<div class="wyw-htick" style="left:100%"><div class="wyw-htline"></div><span class="wyw-htlabel" style="transform:translateX(-100%)">'+pad(CUT)+'</span></div>';
-    html+='<div class="wyw-cutoff"></div>';
-    html+='</div><div class="wyw-bhmeta"><span class="wyw-corner">START</span><span class="wyw-corner">END</span><span class="wyw-corner">LEN</span><span class="wyw-corner">MTGS</span><span class="wyw-corner">EVENTS · 30d</span></div></div>';
-    html+='<div class="wyw-bbody">';
-    rows.forEach(function(r){
-      var wknd=isWknd(r), dayoff=!!offSet[r.key], excl=wknd||dayoff, zero=r.total===0;
-      var has=r.first&&r.last;
-      var fp=has?minToPct(r.first.minOfDay):0, lp=has?minToPct(r.last.minOfDay):0;
-      var bl=Math.min(fp,lp), bw=Math.abs(lp-fp);
-      var dstr='—'; if(has){var mn=r.last.minOfDay-r.first.minOfDay;dstr=Math.floor(mn/60)+'h '+pad(mn%60)+'m';}
-      var dayMtgs=mtgByDay[r.key]||[]; var mc=dayMtgs.length;
-      var tavg=trailingAvg(r.date.getTime());
-      var evPct=Math.min(100,(r.total/maxTot)*100), avgPct=Math.min(100,(tavg/maxTot)*100), above=r.total>=tavg;
-      var fillCls=(excl||zero)?'excl':(above?'above':'below');
-      var mtgCls = mc>avgMtg+0.5?'hi':(mc<avgMtg-0.5?'lo':'');
-      html+='<div class="wyw-row'+(wknd?' weekend':'')+(dayoff?' wyw-dayoff':'')+(zero?' wyw-zero':'')+'" style="height:'+(ROWH+6)+'px">';
-      html+='<div class="wyw-rlabel"><span class="wyw-rdate wyw-mono" title="Click to mark/unmark a day off (excluded from averages)" onclick="wywToggleDayOff(\''+r.key+'\')">'+fmtDate(r.date)+(dayoff?' <span class="wyw-offtag">off</span>':'')+'</span></div>';
-      html+='<div class="wyw-rtrack" style="height:'+(ROWH+6)+'px"><div class="wyw-baseline"></div>';
-      ticks.forEach(function(h){html+='<div class="wyw-grid" style="left:'+minToPct(h*60)+'%"></div>';});
-      if(has){
-        r.slots.forEach(function(s,i){if(s.count===0)return;var inten=s.count/maxSlot;html+='<div class="wyw-dens" data-k="'+r.key+'" data-s="'+i+'" style="left:'+minToPct(i*GRAN)+'%;width:'+slotW+'%;height:'+ROWH+'px;background:'+cellColor(inten)+'"></div>';});
-        if(mtgOn){dayMtgs.forEach(function(mm,mi){var l=minToPct(mm.sMin),w=Math.max(0.6,minToPct(mm.eMin-mm.sMin));html+='<div class="wyw-mtgbox" data-k="'+r.key+'" data-mi="'+mi+'" style="left:'+l+'%;width:'+w+'%"></div>';});}
-        if(bw>0)html+='<div class="wyw-bell" style="left:'+bl+'%;width:'+bw+'%"></div>';
-        html+='<div class="wyw-cap wyw-cfirst" style="left:'+fp+'%"></div><div class="wyw-cap wyw-clast" style="left:'+lp+'%"></div>';
-      }
-      html+='</div>';
-      html+='<div class="wyw-rmeta"><span class="wyw-rtime wyw-mono">'+(has?fmtTime(r.first.ts):'—')+'</span><span class="wyw-rtime wyw-mono">'+(has?fmtTime(r.last.ts):'—')+'</span><span class="wyw-rdur wyw-mono">'+dstr+'</span>'+
-        '<span class="wyw-mtgs '+mtgCls+'" title="'+mc+' meetings · avg '+avgMtg.toFixed(1)+'">'+mc+'</span>'+
-        '<div class="wyw-evt" title="'+r.total+' events'+((excl||zero)?'':' · 30-day avg '+tavg.toFixed(1))+'"><div class="wyw-evt-track"><div class="wyw-evt-fill '+fillCls+'" style="width:'+evPct.toFixed(1)+'%"></div>'+((excl||zero)?'':'<div class="wyw-evt-avg" style="left:'+avgPct.toFixed(1)+'%"></div>')+'</div><span class="wyw-evt-num wyw-mono">'+r.total+'</span></div>'+
-        '</div>';
-      html+='</div>';
-    });
-    html+='</div></div></div>';
-    html+='<footer class="wyw-foot"><span class="wyw-fnote">Rows are <em>logical</em> days — anything before '+pad(CUT)+':00 folds into the previous evening. The start→end line is a <em>dumbbell</em> of your first and last action; meeting blocks (toggleable) span each meeting’s real duration. Weekends &amp; days off (click a date) are excluded from averages.</span></footer>';
-    html+='</section>';
-    var dowH='';for(var i=0;i<7;i++){var v=avg(dow[i]);var mn=6*60,mx=13*60;var pct=Math.max(0,Math.min(1,(v-mn)/(mx-mn)));dowH+='<div class="wyw-dowrow"><span class="wyw-dowlab">'+DYS[i]+'</span><div class="wyw-dowtrack"><div class="wyw-dowbar" style="width:'+(pct*100)+'%"></div><span class="wyw-dowtime wyw-mono">'+(v?hhmm(v):'—')+'</span></div></div>';}
-    var histH='';hist.forEach(function(v,h){histH+='<div class="wyw-hh" title="'+pad(h)+':00 — '+v+' events"><div class="wyw-hhbar" style="height:'+((v/maxHist)*100)+'%"></div>'+(h%6===0?'<span class="wyw-hhlab wyw-mono">'+pad(h)+'</span>':'')+'</div>';});
-    var srcH='';['slack','email','calendar'].forEach(function(s){var c=srcTot[s],pc=total?c/total:0;srcH+='<div class="wyw-srow"><span class="wyw-sdot wyw-'+s+'"></span><span class="wyw-sname">'+s+'</span><div class="wyw-strack"><div class="wyw-sbar wyw-'+s+'" style="width:'+(pc*100)+'%"></div></div><span class="wyw-spct wyw-mono">'+Math.round(pc*100)+'%</span></div>';});
-    html+='<aside class="wyw-ins">'+
-      '<section class="wyw-isec"><h3 class="wyw-ih3">Your day shape <span style="text-transform:none;letter-spacing:0;color:#aab;font-weight:400">· weekdays</span></h3><div class="wyw-bigs">'+
-      '<div class="wyw-big"><span class="wyw-bslab">avg. start</span><span class="wyw-bsval wyw-mono">'+hhmm(avgStart)+'</span></div>'+
-      '<div class="wyw-big"><span class="wyw-bslab">avg. end</span><span class="wyw-bsval wyw-mono">'+hhmm(avgEnd)+'</span></div>'+
-      '<div class="wyw-big"><span class="wyw-bslab">typical length</span><span class="wyw-bsval wyw-mono">'+durStr(medDur)+'</span></div>'+
-      '<div class="wyw-big"><span class="wyw-bslab">avg. meetings/day</span><span class="wyw-bsval wyw-mono">'+avgMtg.toFixed(1)+'</span></div>'+
-      '</div></section>'+
-      '<section class="wyw-isec"><h3 class="wyw-ih3">Recent trend</h3><p class="wyw-trend"><span class="wyw-tnum wyw-mono">'+(trend>=0?'+':'−')+Math.abs(Math.round(trend))+' min</span> <span class="wyw-tnote">you’ve been starting '+(Math.abs(trend)<5?'about the same':(trend>0?'later':'earlier'))+' the last 2 weeks vs. the 2 before</span></p></section>'+
-      '<section class="wyw-isec"><h3 class="wyw-ih3">Start time by weekday</h3><div class="wyw-dowlist">'+dowH+'</div><div class="wyw-dowaxis wyw-mono"><span>06:00</span><span>13:00</span></div></section>'+
-      '<section class="wyw-isec"><h3 class="wyw-ih3">Activity by hour</h3><div class="wyw-hist">'+histH+'</div></section>'+
-      '<section class="wyw-isec"><h3 class="wyw-ih3">Sources</h3><div class="wyw-sbars">'+srcH+'</div></section>'+
-      '</aside>';
-    html+='</div></div>';
-    sec.innerHTML=html;
-    var tip=document.getElementById('wyw-tip'); if(!tip){tip=document.createElement('div');tip.id='wyw-tip';tip.className='wyw-tip';tip.style.display='none';document.body.appendChild(tip);}
-    var byKey={}; rows.forEach(function(r){byKey[r.key]=r;});
-    var tT=null, tX=0, tY=0;
-    function place(){tip.style.left=Math.min(window.innerWidth-250,tX+12)+'px';tip.style.top=(tY+14)+'px';}
-    function densHtml(el){var r=byKey[el.getAttribute('data-k')], si=+el.getAttribute('data-s'), s=r.slots[si];var t1=offToClock(si*GRAN),t2=offToClock((si+1)*GRAN);var src=['slack','email','calendar'].map(function(k){return s.byS[k]>0?'<div class="wyw-tsrc wyw-'+k+'"><span class="wyw-tdot"></span><span class="wyw-tslbl">'+k+'</span><span class="wyw-tscnt">'+s.byS[k]+'</span></div>':'';}).join('');var mt='';(mtgByDay[r.key]||[]).forEach(function(mm){if(mm.sMin<si*GRAN+GRAN&&mm.eMin>si*GRAN)mt+='<div class="wyw-tmtg">📅 '+mm.subject+'</div>';});return '<div class="wyw-tdate">'+fmtDate(r.date)+'</div><div class="wyw-ttime wyw-mono">'+t1+' – '+t2+'</div><div class="wyw-ttot">'+s.count+' events</div><div class="wyw-tsrcs">'+src+'</div>'+mt;}
-    function mtgHtml(el){var arr=mtgByDay[el.getAttribute('data-k')]||[];var m=arr[+el.getAttribute('data-mi')];if(!m)return '';var r=byKey[el.getAttribute('data-k')];return '<div class="wyw-tdate">'+fmtDate(r.date)+'</div><div class="wyw-tmtgtitle">📅 '+m.subject+'</div><div class="wyw-ttime wyw-mono">'+offToClock(m.sMin)+' – '+offToClock(m.eMin)+' · '+m.dur+'m</div>'+(m.att?'<div class="wyw-tatt">'+m.att+' attendees</div>':'');}
-    function arm(fn){return function(e){tX=e.clientX;tY=e.clientY;var el=this;clearTimeout(tT);tT=setTimeout(function(){var h=fn(el);if(h){tip.innerHTML=h;place();tip.style.display='block';}},200);};}
-    function moveH(e){tX=e.clientX;tY=e.clientY;if(tip.style.display==='block')place();}
-    function leaveH(){clearTimeout(tT);tip.style.display='none';}
-    sec.querySelectorAll('.wyw-dens').forEach(function(el){el.addEventListener('mouseenter',arm(densHtml));el.addEventListener('mousemove',moveH);el.addEventListener('mouseleave',leaveH);});
-    sec.querySelectorAll('.wyw-mtgbox').forEach(function(el){el.addEventListener('mouseenter',arm(mtgHtml));el.addEventListener('mousemove',moveH);el.addEventListener('mouseleave',leaveH);});
-  };
-  window.ensureConnectPrompts=function(){
-    var AS=(typeof AUTH_STATE!=='undefined')?AUTH_STATE:{};
-    var defs=[
-      {sec:'tab-email',ok:!!AS.microsoft,id:'wyw-cp-email',title:'Connect Microsoft',desc:'Add your email & calendar activity to the dashboard.',cls:'ms',fn:'login()'},
-      {sec:'tab-calendar',ok:!!AS.microsoft,id:'wyw-cp-cal',title:'Connect Microsoft',desc:'Add your calendar activity to the dashboard.',cls:'ms',fn:'login()'},
-      {sec:'tab-slack',ok:!!AS.slack,id:'wyw-cp-slack',title:'Connect Slack',desc:'Add your Slack activity to the dashboard.',cls:'slack',fn:'connectSlack()'}
-    ];
-    defs.forEach(function(d){
-      var sec=document.getElementById(d.sec); if(!sec)return;
-      var ex=document.getElementById(d.id);
-      if(d.ok){ if(ex)ex.remove(); return; }
-      if(d.sec==='tab-slack' && sec.querySelector('.connect-prompt, .btn-slack')){ return; }
-      if(!ex){ var el=document.createElement('div'); el.id=d.id; el.className='wyw-cprompt'; el.innerHTML='<h4>'+d.title+'</h4><p>'+d.desc+'</p><button class="wyw-cbtn '+d.cls+'" onclick="'+d.fn+'">'+d.title+'</button>'; sec.insertBefore(el, sec.firstChild); }
-    });
-  };
-  if(!document.getElementById('wyw-css')){
-    if(!document.getElementById('wyw-font')){var fl=document.createElement('link');fl.id='wyw-font';fl.rel='stylesheet';fl.href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap';document.head.appendChild(fl);} var st=document.createElement('style'); st.id='wyw-css';
-    st.textContent=
-    '#tab-rhythm{padding:0!important}'+
-    '.wyw-root{--label-w:92px;--meta-w:300px;--ink:#1e2035;--ink2:#454a63;--ink3:#838a9e;--line:#e7e9f0;--line2:#eef0f5;--panel:#fff;--panel2:#f7f8fb;--bg:#ffffff;--accent:#5b6af9;--weekend:#fbf7ee;--first:#e8923a;--last:#7b59c9;--ss:#d4663f;--se:#5b6af9;--sc:#3aa06b;font-family:Inter,-apple-system,sans-serif;color:var(--ink);display:flex;flex-direction:column;height:calc(100vh - 120px);min-height:560px;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--panel)}'+
-    '.wyw-mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.01em}'+
-    '.wyw-muted{color:var(--ink3);font-weight:400}'+
-    '.wyw-topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 24px;border-bottom:1px solid var(--line);background:var(--panel)}'+
-    '.wyw-brand{display:flex;align-items:center;gap:12px}'+
-    '.wyw-mark{width:26px;height:26px;border-radius:7px;background:radial-gradient(circle at 30% 30%,#f5e6c8 0 5px,transparent 6px),radial-gradient(circle at 75% 75%,#7b59c9 0 4px,transparent 5px),linear-gradient(135deg,#5b6af9,#4a3fb0)}'+
-    '.wyw-btext{display:flex;flex-direction:column;line-height:1.15}.wyw-bname{font-weight:600;font-size:15px}.wyw-btag{font-size:12px;color:var(--ink3)}'+
-    '.wyw-tstats{display:flex;gap:32px}.wyw-tstat{display:flex;flex-direction:column;gap:2px}'+
-    '.wyw-tslab{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:500;white-space:nowrap}.wyw-tsval{font-size:17px;font-weight:500;white-space:nowrap}'+
-    '.wyw-main{display:grid;grid-template-columns:minmax(0,1fr) 340px;flex:1;min-height:0}'+
-    '.wyw-pane{display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--line);background:var(--bg)}'+
-    '.wyw-head{display:flex;align-items:flex-end;justify-content:space-between;padding:14px 24px 12px;gap:18px;flex-wrap:wrap}'+
-    '.wyw-ctitle{font-size:17px;font-weight:600;margin:0}'+
-    '.wyw-headright{display:flex;align-items:center;gap:18px;flex-wrap:wrap}'+
-    '.wyw-legend{display:flex;align-items:center;gap:18px;font-size:12px;color:var(--ink2)}.wyw-lg{display:flex;align-items:center;gap:7px}'+
-    '.wyw-llab{color:var(--ink3);text-transform:uppercase;font-size:10px;letter-spacing:.08em;font-weight:500}.wyw-lscale{display:flex;gap:2px}'+
-    '.wyw-sw{width:18px;height:12px;border-radius:2px;border:1px solid var(--line)}'+
-    '.wyw-dot{width:9px;height:9px;border-radius:50%;display:inline-block}.wyw-dfirst{background:var(--first)}.wyw-dlast{background:var(--last)}.wyw-ltext{font-size:12px;color:var(--ink2)}'+
-    '.wyw-bell-mini{width:16px;height:2px;border-radius:2px;background:linear-gradient(to right,var(--first),var(--last));display:inline-block}'+
-    '.wyw-mtgsw{width:12px;height:12px;border-radius:2px;border:1.5px solid rgba(58,160,107,.9);background:rgba(58,160,107,.06);display:inline-block}'+
-    '.wyw-toggles{display:flex;align-items:center;gap:14px}.wyw-tg{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink2);cursor:pointer;user-select:none}.wyw-tg input{accent-color:var(--accent);cursor:pointer;margin:0}'+
-    '.wyw-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 24px 16px}'+
-    '.wyw-foot{padding:10px 24px 16px;border-top:1px solid var(--line2);background:var(--panel)}.wyw-fnote{font-size:12px;color:var(--ink3)}.wyw-fnote em{font-style:italic;color:var(--ink2)}'+
-    '.wyw-barwrap{position:relative;width:100%}'+
-    '.wyw-bhead{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:var(--label-w) minmax(0,1fr) var(--meta-w);column-gap:12px;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 0 6px;height:36px}'+
-    '.wyw-bhlabel{display:flex;align-items:flex-end}.wyw-corner{font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}'+
-    '.wyw-bhtrack{position:relative;height:100%}'+
-    '.wyw-bhmeta{display:grid;grid-template-columns:1fr 1fr 1fr 0.55fr 1.7fr;align-items:flex-end;gap:4px;padding-right:4px}.wyw-bhmeta .wyw-corner{text-align:right}'+
-    '.wyw-htick{position:absolute;bottom:0;height:100%}.wyw-htline{position:absolute;bottom:0;left:0;width:1px;height:6px;background:var(--line)}'+
-    '.wyw-htlabel{position:absolute;bottom:8px;left:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;color:var(--ink3);transform:translateX(-50%)}'+
-    '.wyw-cutoff{position:absolute;top:0;bottom:0;left:0;width:2px;background:rgba(232,146,58,.55)}'+
-    '.wyw-bbody{padding-top:4px}'+
-    '.wyw-row{display:grid;grid-template-columns:var(--label-w) minmax(0,1fr) var(--meta-w);column-gap:12px;align-items:center;position:relative;border-bottom:1px solid var(--line2)}'+
-    '.wyw-row.weekend{background:var(--weekend)}.wyw-row.wyw-dayoff{opacity:.5}.wyw-row.wyw-zero .wyw-rdate{color:var(--ink3);font-weight:400}'+
-    '.wyw-rlabel{display:flex;align-items:center}.wyw-rdate{font-size:10.5px;color:var(--ink2);font-weight:500;cursor:pointer}.wyw-rdate:hover{color:var(--accent)}'+
-    '.wyw-offtag{font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#b9bdca;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:middle}'+
-    '.wyw-rtrack{position:relative;width:100%}.wyw-baseline{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line);transform:translateY(-.5px)}'+
-    '.wyw-grid{position:absolute;top:12%;bottom:12%;width:1px;background:rgba(146,150,170,.16);transform:translateX(-.5px)}'+
-    '.wyw-dens{position:absolute;top:50%;transform:translateY(-50%);border-radius:1px;mix-blend-mode:multiply;transition:filter .1s}.wyw-dens:hover{filter:brightness(1.15) saturate(1.1);outline:1px solid rgba(30,32,53,.35)}'+
-    '.wyw-mtgbox{position:absolute;top:50%;transform:translateY(-50%);height:14px;border:1.5px solid rgba(58,160,107,.85);border-radius:3px;background:rgba(58,160,107,.05);pointer-events:auto;z-index:3;box-sizing:border-box}.wyw-mtgbox:hover{background:rgba(58,160,107,.14)}'+
-    '.wyw-bell{position:absolute;top:50%;transform:translateY(-50%);height:2px;border-radius:2px;background:linear-gradient(to right,var(--first),var(--last));opacity:.45;z-index:1}'+
-    '.wyw-cap{position:absolute;top:50%;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1.5px var(--bg);z-index:2}.wyw-row.weekend .wyw-cap{box-shadow:0 0 0 1.5px var(--weekend)}.wyw-cfirst{background:var(--first)}.wyw-clast{background:var(--last)}'+
-    '.wyw-rmeta{display:grid;grid-template-columns:1fr 1fr 1fr 0.55fr 1.7fr;align-items:center;gap:4px;padding-right:4px}.wyw-rmeta>span{text-align:right;font-size:10.5px}.wyw-rtime{color:var(--ink2);font-weight:500}.wyw-rdur{color:var(--ink3)}'+
-    '.wyw-mtgs{text-align:right;font-size:10.5px;font-weight:600;color:var(--ink3);font-family:"JetBrains Mono",ui-monospace,monospace}.wyw-mtgs.hi{color:#c47a2e}.wyw-mtgs.lo{color:#b9bdca;font-weight:500}'+
-    '.wyw-evt{display:flex;align-items:center;gap:6px;justify-content:flex-end}.wyw-evt-track{position:relative;flex:1;height:11px;border-radius:3px;background:#eef0f5;max-width:130px}.wyw-evt-fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px}.wyw-evt-fill.above{background:rgba(91,106,249,.85)}.wyw-evt-fill.below{background:rgba(91,106,249,.26)}.wyw-evt-fill.excl{background:#cdd2de}.wyw-evt-avg{position:absolute;top:-2px;bottom:-2px;width:2px;background:#1e2035;opacity:.5;border-radius:1px}.wyw-evt-num{min-width:20px;text-align:right;font-size:10px;color:var(--ink2);font-weight:600}'+
-    '.wyw-ins{background:var(--panel);overflow-y:auto;padding:20px 22px 26px;display:flex;flex-direction:column;gap:22px}'+
-    '.wyw-isec{display:flex;flex-direction:column;gap:12px}.wyw-ih3{margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--ink3)}'+
-    '.wyw-bigs{display:grid;grid-template-columns:1fr 1fr;gap:14px}.wyw-big{display:flex;flex-direction:column;gap:4px;padding:12px 14px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}'+
-    '.wyw-bslab{font-size:10.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:500}.wyw-bsval{font-size:22px;font-weight:500;letter-spacing:-.02em}.wyw-bsuf{font-size:13px;color:var(--ink3);font-weight:400}'+
-    '.wyw-trend{margin:0;font-size:13px;color:var(--ink2);line-height:1.5}.wyw-tnum{font-size:18px;color:var(--ink);font-weight:500}.wyw-tnote{color:var(--ink2)}'+
-    '.wyw-dowlist{display:flex;flex-direction:column;gap:6px}.wyw-dowrow{display:grid;grid-template-columns:32px 1fr;align-items:center;gap:10px}.wyw-dowlab{font-size:11px;color:var(--ink2);font-weight:500}'+
-    '.wyw-dowtrack{position:relative;height:18px;background:var(--line2);border-radius:4px;display:flex;align-items:center}.wyw-dowbar{height:100%;background:var(--accent);border-radius:4px;opacity:.85}.wyw-dowtime{position:absolute;right:6px;top:50%;transform:translateY(-50%);font-size:10.5px;color:var(--ink2);font-weight:500}'+
-    '.wyw-dowaxis{display:flex;justify-content:space-between;padding-left:42px;font-size:10px;color:var(--ink3)}'+
-    '.wyw-hist{display:grid;grid-template-columns:repeat(24,1fr);gap:2px;height:70px;align-items:end;padding:4px 0 16px}.wyw-hh{position:relative;height:100%;display:flex;align-items:flex-end}.wyw-hhbar{width:100%;background:var(--accent);border-radius:2px 2px 0 0;opacity:.55;min-height:1px}.wyw-hh:hover .wyw-hhbar{opacity:1}.wyw-hhlab{position:absolute;top:100%;left:50%;transform:translateX(-50%);font-size:9.5px;color:var(--ink3);padding-top:4px}'+
-    '.wyw-sbars{display:flex;flex-direction:column;gap:10px}.wyw-srow{display:grid;grid-template-columns:12px 64px 1fr 36px;align-items:center;gap:10px}.wyw-sdot{width:8px;height:8px;border-radius:50%}.wyw-sname{font-size:12px;color:var(--ink2);text-transform:capitalize;font-weight:500}.wyw-strack{height:10px;background:var(--line2);border-radius:3px;overflow:hidden}.wyw-sbar{height:100%;border-radius:3px}.wyw-spct{font-size:11px;color:var(--ink2);text-align:right}'+
-    '.wyw-slack{background:var(--ss)}.wyw-email{background:var(--se)}.wyw-calendar{background:var(--sc)}'+
-    '.wyw-cprompt{margin:22px auto;max-width:460px;text-align:center;padding:28px 24px;background:#f7f8fb;border:1px solid #e7e9f0;border-radius:14px;font-family:Inter,-apple-system,sans-serif}.wyw-cprompt h4{margin:0 0 6px;font-size:16px;color:#1e2035}.wyw-cprompt p{margin:0 0 16px;font-size:13px;color:#838a9e}.wyw-cbtn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;font-family:inherit}.wyw-cbtn.ms{background:#2f6fed}.wyw-cbtn.slack{background:#4A154B}'+
-    '.wyw-tip{position:fixed;z-index:100;background:#1e2035;color:#fff;padding:10px 12px;border-radius:8px;font-size:12px;min-width:170px;max-width:240px;box-shadow:0 12px 36px rgba(0,0,0,.22);pointer-events:none}.wyw-tdate{font-weight:600;margin-bottom:2px}.wyw-tmtgtitle{font-weight:600;margin:2px 0 4px}.wyw-ttime{font-size:11px;color:#aab;margin-bottom:6px}.wyw-ttot{font-size:13px;font-weight:600;margin-bottom:6px}.wyw-tatt{font-size:11px;color:#aab}.wyw-tmtg{font-size:11.5px;color:#dfe;margin-top:3px}.wyw-tsrcs{display:flex;flex-direction:column;gap:3px}.wyw-tsrc{display:flex;align-items:center;gap:8px;font-size:11.5px}.wyw-tdot{width:6px;height:6px;border-radius:50%}.wyw-tsrc.wyw-slack .wyw-tdot{background:var(--ss)}.wyw-tsrc.wyw-email .wyw-tdot{background:var(--se)}.wyw-tsrc.wyw-calendar .wyw-tdot{background:var(--sc)}.wyw-tslbl{text-transform:capitalize;flex:1;color:#ccd}.wyw-tscnt{color:#fff;font-weight:500}';
-    document.head.appendChild(st);
-  }
-  if(!document.getElementById('tab-rhythm')){
-    var bar=document.getElementById('main-tab-bar');
-    if(bar){var btn=document.createElement('button');btn.className='tab-btn';btn.setAttribute('data-tab','rhythm');btn.setAttribute('onclick',"showTab('rhythm')");btn.innerHTML='<span class="tab-icon">🌙</span> Rhythm';bar.appendChild(btn);}
-    var actSec=document.getElementById('tab-activity');
-    var sec=document.createElement('section');sec.className='tab-section';sec.id='tab-rhythm';sec.setAttribute('data-tab','rhythm');
-    if(actSec&&actSec.parentNode){actSec.parentNode.insertBefore(sec,actSec.nextSibling);}else{var mn=document.querySelector('main'); if(mn) mn.appendChild(sec);}
-  }
-  if(typeof showTab==='function' && !showTab.__wyw){
-    var o=showTab;
-    showTab=function(t){var r=o.apply(this,arguments); try{window.ensureConnectPrompts();}catch(e){} if(t==='rhythm'){try{window.renderWhenYouWork();}catch(e){console.error('wyw',e);}} return r;};
-    showTab.__wyw=true;
-  }
-  if(typeof updateAuthBadges==='function' && !updateAuthBadges.__wyw){
-    var ub=updateAuthBadges;
-    updateAuthBadges=function(){var r=ub.apply(this,arguments); try{window.ensureConnectPrompts();}catch(e){} return r;};
-    updateAuthBadges.__wyw=true;
-  }
-  try{window.ensureConnectPrompts();}catch(e){}
-  setTimeout(function(){try{window.ensureConnectPrompts();}catch(e){}},1500);
-  setTimeout(function(){try{window.ensureConnectPrompts();}catch(e){}},4000);
-})();/*WYW_END*/</script>
 <script>/*BLOB_FACTOR_START*/(function __bfInit(){
   function pad(n){return String(n).padStart(2,'0');}
   function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
@@ -6052,5 +5774,415 @@ init();
   };
   if(!window.__bfEsc){window.__bfEsc=true;document.addEventListener('keydown',function(e){if(e.key==='Escape')bfSettings(false);});}
 })();/*BLOB_SETTINGS_END*/</script>
+<script>/*WYW_START*/(function __wywInit(){
+  var CUT=4, GRAN=30, THEME='#5b6af9', ROWH=16;
+  function pad(n){return String(n).padStart(2,'0');}
+  function hhmm(min){var m=((Math.round(min)%1440)+1440)%1440;return pad(Math.floor(m/60))+':'+pad(m%60);}
+  function offMin(d){var m=d.getHours()*60+d.getMinutes()-CUT*60;if(m<0)m+=1440;return m;}
+  function offToClock(off){return hhmm(off+CUT*60);}
+  function durStr(min){var h=Math.floor(min/60),m=Math.round(min%60);return h+'h '+pad(m)+'m';}
+  function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+  function avg(a){return a.length?a.reduce(function(x,y){return x+y;},0)/a.length:0;}
+  function median(a){if(!a.length)return 0;var s=a.slice().sort(function(x,y){return x-y;}),m=Math.floor(s.length/2);return s.length%2?s[m]:(s[m-1]+s[m])/2;}
+  function stdev(a){if(!a.length)return 0;var m=avg(a),v=a.reduce(function(x,y){return x+(y-m)*(y-m);},0)/a.length;return Math.sqrt(v);}
+  var DYS=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'],MO=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  function fmtDate(d){return DYS[d.getDay()]+' '+MO[d.getMonth()]+' '+pad(d.getDate());}
+  function fmtTime(d){return pad(d.getHours())+':'+pad(d.getMinutes());}
+  function keyOf(d){return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+  function logDay(d){var lg=new Date(d);if(lg.getHours()<CUT)lg.setDate(lg.getDate()-1);lg.setHours(0,0,0,0);return lg;}
+  function mondayOf(d){var x=new Date(d);x.setHours(0,0,0,0);var dow=x.getDay();var diff=dow===0?-6:1-dow;x.setDate(x.getDate()+diff);return x;}
+  function hexToRgb(hex){var h=String(hex).replace('#','');var x=h.length===3?h.replace(/./g,function(c){return c+c;}):h;var n=parseInt(x,16);return [(n>>16)&255,(n>>8)&255,n&255];}
+  function cellColor(i){if(i<=0)return 'transparent';var c=hexToRgb(THEME);var a=0.08+i*0.87;return 'rgba('+c[0]+','+c[1]+','+c[2]+','+a.toFixed(3)+')';}
+  function getDaysOff(){try{return JSON.parse(localStorage.getItem('wyw_daysoff')||'[]');}catch(e){return [];}}
+  function getTog(name,def){var v=null;try{v=localStorage.getItem('wyw_tg_'+name);}catch(e){}return v===null?def:(v==='1');}
+  window.wywToggle=function(name,def){var cur=getTog(name,def);try{localStorage.setItem('wyw_tg_'+name,cur?'0':'1');}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
+  window.wywSetView=function(v){try{localStorage.setItem('wyw_view',v);}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
+  function getView(){try{return localStorage.getItem('wyw_view')||'day';}catch(e){return 'day';}}
+  window.wywToggleDayOff=function(key){var s=getDaysOff();var i=s.indexOf(key);if(i>=0)s.splice(i,1);else s.push(key);try{localStorage.setItem('wyw_daysoff',JSON.stringify(s));}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
+
+  function getActivities(){
+    if(typeof buildActivitySignals!=='function')return [];
+    var sig; try{sig=buildActivitySignals()||[];}catch(e){return [];}
+    var out=[];
+    sig.forEach(function(s){
+      if(!s||!s.ts)return;
+      var keep = s.source==='calendar' ? true : (s.type==='sent');
+      if(!keep)return;
+      var d=s.ts instanceof Date?s.ts:new Date(s.ts);
+      if(!d||isNaN(d.getTime()))return;
+      out.push({ts:d,source:s.source,kind:s.type});
+    });
+    out.sort(function(a,b){return a.ts-b.ts;});
+    return out;
+  }
+  function getMeetings(){
+    var CD=(typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];
+    return CD.map(function(m){var st=m.start instanceof Date?m.start:new Date(m.start);return {start:st};}).filter(function(m){return m.start&&!isNaN(m.start.getTime());});
+  }
+
+  function bucketByDay(acts){
+    var cols=Math.floor(1440/GRAN), days=new Map();
+    acts.forEach(function(a){
+      var local=a.ts, logical=logDay(local);
+      var key=keyOf(logical);
+      var ds=new Date(logical); ds.setHours(CUT,0,0,0);
+      var elapsed=Math.floor((local-ds)/60000);
+      var slot=Math.max(0,Math.min(cols-1,Math.floor(elapsed/GRAN)));
+      var row=days.get(key);
+      if(!row){row={key:key,date:logical,slots:[],first:null,last:null,total:0,_kind:'day'};for(var i=0;i<cols;i++)row.slots.push({count:0});days.set(key,row);}
+      row.slots[slot].count++; row.total++;
+      if(row.first==null||slot<row.first.slot)row.first={slot:slot,ts:a.ts,minOfDay:elapsed};
+      if(row.last==null||slot>row.last.slot)row.last={slot:slot,ts:a.ts,minOfDay:elapsed};
+    });
+    return {rows:Array.from(days.values()).sort(function(a,b){return b.date-a.date;}),cols:cols};
+  }
+  function bucketByWeek(acts){
+    var cols=Math.floor(1440/GRAN);
+    var dayMap=bucketByDay(acts).rows.reduce(function(m,r){m[r.key]=r;return m;},{});
+    var weeks=new Map();
+    Object.keys(dayMap).forEach(function(k){
+      var r=dayMap[k];
+      var monday=mondayOf(r.date);
+      var wkey=keyOf(monday);
+      var w=weeks.get(wkey);
+      if(!w){w={key:wkey,date:monday,slots:[],dayFirsts:[],dayLasts:[],dayTotals:[],total:0,_kind:'week'};for(var i=0;i<cols;i++)w.slots.push({count:0});weeks.set(wkey,w);}
+      for(var i=0;i<cols;i++) w.slots[i].count += r.slots[i].count;
+      if(r.first) w.dayFirsts.push(r.first.minOfDay);
+      if(r.last) w.dayLasts.push(r.last.minOfDay);
+      w.dayTotals.push(r.total); w.total += r.total;
+    });
+    var rows=Array.from(weeks.values()).sort(function(a,b){return b.date-a.date;});
+    rows.forEach(function(w){
+      if(w.dayFirsts.length){var mf=median(w.dayFirsts);w.first={slot:Math.floor(mf/GRAN),minOfDay:mf};}
+      if(w.dayLasts.length){var ml=median(w.dayLasts);w.last={slot:Math.floor(ml/GRAN),minOfDay:ml};}
+    });
+    return {rows:rows,cols:cols};
+  }
+
+  function rhythmScoreOn(acts){
+    var bd=bucketByDay(acts).rows;
+    var weekdays=bd.filter(function(r){var d=r.date.getDay();return d!==0&&d!==6;}).filter(function(r){return r.first;});
+    var starts=weekdays.map(function(r){return r.first.ts.getHours()+r.first.ts.getMinutes()/60;});
+    var s=stdev(starts);
+    return clamp(Math.round(100-s*15),30,100);
+  }
+  function inWindow(acts, fromMs, toMs){return acts.filter(function(a){var t=a.ts.getTime();return t>=fromMs && t<=toMs;});}
+
+  function trendDeltaMin(acts, fnExtract, daysWin){
+    var now=Date.now(); var aHi=daysWin*86400000;
+    var recent=inWindow(acts, now-aHi, now);
+    var prior=inWindow(acts, now-2*aHi, now-aHi);
+    var rb=bucketByDay(recent).rows.filter(function(r){var d=r.date.getDay();return d!==0&&d!==6;}).filter(function(r){return r.first&&r.last;});
+    var pb=bucketByDay(prior).rows.filter(function(r){var d=r.date.getDay();return d!==0&&d!==6;}).filter(function(r){return r.first&&r.last;});
+    var rv=avg(rb.map(fnExtract));
+    var pv=avg(pb.map(fnExtract));
+    return {recent:rv, prior:pv, delta:rv-pv, n1:rb.length, n2:pb.length};
+  }
+
+  window.renderWhenYouWork=function(){
+    var sec=document.getElementById('tab-rhythm'); if(!sec)return;
+    var showEmpty=getTog('empty',true);
+    var view=getView();
+    var acts=getActivities();
+    var meetings=getMeetings();
+    var off=getDaysOff(), offSet={}; off.forEach(function(k){offSet[k]=1;});
+    function isWknd(r){return r.date.getDay()===0||r.date.getDay()===6;}
+    function isExcl(r){return r._kind==='day' && (isWknd(r)||offSet[r.key]);}
+
+    var first=acts.length?acts[0].ts:null,last=acts.length?acts[acts.length-1].ts:null;
+    var daysCovered=(first&&last)?Math.ceil((last-first)/86400000):0;
+
+    var bucket=view==='week'?bucketByWeek(acts):bucketByDay(acts);
+    var rows=bucket.rows, cols=bucket.cols;
+
+    if(view==='day' && showEmpty && acts.length){
+      var byk={}; rows.forEach(function(r){byk[r.key]=r;});
+      var cur=logDay(last), endd=logDay(first), full=[], guard=0;
+      while(cur>=endd && guard<3000){var k=keyOf(cur); full.push(byk[k]||{key:k,date:new Date(cur),slots:[],first:null,last:null,total:0,_kind:'day'}); cur.setDate(cur.getDate()-1); guard++;}
+      rows=full;
+    }
+
+    var dayRows=bucketByDay(acts).rows;
+    var weekdayRows=dayRows.filter(function(r){var d=r.date.getDay();return d!==0&&d!==6;}).filter(function(r){return r.first&&r.last && !offSet[r.key];});
+    var starts=weekdayRows.map(function(r){return r.first.ts.getHours()*60+r.first.ts.getMinutes();});
+    var ends=weekdayRows.map(function(r){var h=r.last.ts.getHours()*60+r.last.ts.getMinutes(); return h<CUT*60?h+1440:h;});
+    var avgStartMin=avg(starts), avgEndMin=avg(ends), medDurMin=median(ends.map(function(e,i){return e-starts[i];}));
+    var earliestStartMin=starts.length?Math.min.apply(null,starts):0;
+    var latestEndMin=ends.length?Math.max.apply(null,ends):0;
+    var nightOwl=weekdayRows.filter(function(r){return r.last.ts.getHours()<CUT;}).length;
+    var nightOwlPct=weekdayRows.length?Math.round(nightOwl/weekdayRows.length*100):0;
+
+    var overall=rhythmScoreOn(acts);
+    var now=Date.now();
+    function deltaWin(days){var lo=now-days*86400000, prevLo=now-2*days*86400000; var s1=rhythmScoreOn(inWindow(acts,lo,now)); var s2=rhythmScoreOn(inWindow(acts,prevLo,lo)); return s1-s2;}
+    var d7=deltaWin(7), d30=deltaWin(30), d90=deltaWin(90);
+
+    var tStart=trendDeltaMin(acts, function(r){return r.first.ts.getHours()*60+r.first.ts.getMinutes();}, 14);
+    var tEnd=trendDeltaMin(acts, function(r){var h=r.last.ts.getHours()*60+r.last.ts.getMinutes(); return h<CUT*60?h+1440:h;}, 14);
+    var tLen=trendDeltaMin(acts, function(r){var s=r.first.ts.getHours()*60+r.first.ts.getMinutes();var e=r.last.ts.getHours()*60+r.last.ts.getMinutes();if(e<CUT*60)e+=1440;return e-s;}, 14);
+
+    var fourW=4*7*86400000;
+    var mNow=meetings.filter(function(m){return m.start.getTime()>=now-fourW;}).length;
+    var mPrev=meetings.filter(function(m){var t=m.start.getTime();return t>=now-2*fourW && t<now-fourW;}).length;
+    var mNowPerWk=mNow/4, mPrevPerWk=mPrev/4;
+    var mDelta=mNowPerWk-mPrevPerWk;
+
+    function noPctIn(fromMs, toMs){var wd=bucketByDay(inWindow(acts,fromMs,toMs)).rows.filter(function(r){var d=r.date.getDay();return d!==0&&d!==6 && r.last;}); if(!wd.length)return 0; var n=wd.filter(function(r){return r.last.ts.getHours()<CUT;}).length; return Math.round(n/wd.length*100);}
+    var noPctRecent=noPctIn(now-fourW, now), noPctPrior=noPctIn(now-2*fourW, now-fourW);
+    var noDelta=noPctRecent-noPctPrior;
+
+    var minToPct=function(m){return (m/1440)*100;};
+    var slotW=minToPct(GRAN);
+    var ticks=[];for(var h=0;h<24;h+=2)ticks.push(h);
+
+    function deltaChip(label, dv, unit, betterIs){
+      var positive = dv>0; var sign = positive?'+':'−'; var abs = Math.abs(Math.round(dv));
+      var goodDir = betterIs==='lower' ? (dv<0) : (dv>0);
+      var tone = abs<1 ? 'neutral' : (goodDir?'good':'bad');
+      var arrow = abs<1 ? '·' : (positive?'▲':'▼');
+      return '<div class="wyw-chip wyw-chip-'+tone+'"><span class="wyw-chip-label">'+label+'</span><span class="wyw-chip-val wyw-mono">'+arrow+' '+sign+abs+(unit?(' '+unit):'')+'</span></div>';
+    }
+    function scoreDelta(label, dv){
+      var positive=dv>=0; var sign=positive?'+':'−'; var abs=Math.abs(Math.round(dv));
+      var tone= abs<1?'neutral':(positive?'good':'bad');
+      var arrow= abs<1?'·':(positive?'▲':'▼');
+      return '<div class="wyw-sd wyw-sd-'+tone+'"><span class="wyw-sd-label">'+label+'</span><span class="wyw-sd-val wyw-mono">'+arrow+' '+sign+abs+'</span></div>';
+    }
+
+    var html='<div class="wyw-root">';
+    html+='<div class="wyw-strip">'
+      +'<div class="wyw-strip-stats">'
+        +'<div class="wyw-st"><span class="wyw-st-lab">FIRST ACTIVITY</span><span class="wyw-st-val wyw-mono">'+(first?fmtDate(first):'—')+'</span></div>'
+        +'<div class="wyw-st"><span class="wyw-st-lab">DAYS COVERED</span><span class="wyw-st-val wyw-mono">'+daysCovered+'</span></div>'
+        +'<div class="wyw-st"><span class="wyw-st-lab">TOTAL EVENTS</span><span class="wyw-st-val wyw-mono">'+acts.length.toLocaleString()+'</span></div>'
+      +'</div>'
+      +'<div class="wyw-strip-right">'
+        +'<div class="wyw-scoreblock"><div class="wyw-sb-lab">RHYTHM SCORE</div><div class="wyw-sb-row"><div class="wyw-sb-val wyw-mono">'+overall+'</div><div class="wyw-sb-deltas">'+scoreDelta('7D',d7)+scoreDelta('30D',d30)+scoreDelta('90D',d90)+'</div></div></div>'
+        +'<div class="wyw-viewtoggle"><button class="wyw-vbtn'+(view==='day'?' wyw-vactive':'')+'" onclick="wywSetView(\'day\')">Day</button><button class="wyw-vbtn'+(view==='week'?' wyw-vactive':'')+'" onclick="wywSetView(\'week\')">Week</button></div>'
+      +'</div>'
+    +'</div>';
+    html+='<div class="wyw-trends">'
+      +deltaChip('start time', tStart.delta, 'min', 'lower')
+      +deltaChip('end time', tEnd.delta, 'min', 'higher')
+      +deltaChip('day length', tLen.delta, 'min', 'neutral')
+      +deltaChip('meetings/wk', mDelta, '', 'neutral')
+      +deltaChip('night-owl', noDelta, 'pp', 'lower')
+    +'</div>';
+    var candleHtml=(function(){
+      function off(m){var x=m-CUT*60;if(x<0)x+=1440;return minToPct(x);}
+      var wLeft=off(earliestStartMin), wRight=off(latestEndMin);
+      var bLeft=off(avgStartMin), bRight=off(avgEndMin);
+      var ticksMarkup=ticks.map(function(h){var clock=Math.floor((h+CUT)%24);return '<div class="wyw-cnd-tick" style="left:'+minToPct(h*60)+'%"><div class="wyw-cnd-tickline"></div><span class="wyw-cnd-ticklab wyw-mono">'+pad(clock)+'</span></div>';}).join('') + '<div class="wyw-cnd-tick" style="left:100%"><div class="wyw-cnd-tickline"></div><span class="wyw-cnd-ticklab wyw-mono" style="transform:translateX(-100%)">'+pad(CUT)+'</span></div>';
+      return '<div class="wyw-candle">'
+        +'<div class="wyw-cnd-head"><span class="wyw-cnd-title">Day span</span><span class="wyw-cnd-sub">earliest start → latest end · box is typical (avg start → avg end) · weekdays</span></div>'
+        +'<div class="wyw-cnd-track">'+ticksMarkup
+          +'<div class="wyw-cnd-wick" style="left:'+wLeft+'%;width:'+(wRight-wLeft)+'%"></div>'
+          +'<div class="wyw-cnd-box" style="left:'+bLeft+'%;width:'+(bRight-bLeft)+'%"></div>'
+          +'<div class="wyw-cnd-mark wyw-mono" style="left:'+wLeft+'%">'+hhmm(earliestStartMin)+'</div>'
+          +'<div class="wyw-cnd-mark wyw-cnd-mark-right wyw-mono" style="left:'+wRight+'%">'+hhmm(latestEndMin%1440)+'</div>'
+          +'<div class="wyw-cnd-mark2 wyw-mono" style="left:'+bLeft+'%">'+hhmm(avgStartMin)+'</div>'
+          +'<div class="wyw-cnd-mark2 wyw-cnd-mark-right wyw-mono" style="left:'+bRight+'%">'+hhmm(avgEndMin%1440)+'</div>'
+        +'</div>'
+      +'</div>';
+    })();
+
+    html+='<div class="wyw-main">'
+      +'<section class="wyw-pane">'
+        +'<div class="wyw-head"><h2 class="wyw-ctitle">'+(view==='week'?'Week shape':'Day shape')+' <span class="wyw-muted">— '+rows.length+' '+(view==='week'?'weeks':'days')+', '+GRAN+'-min slots, day starts at '+pad(CUT)+':00</span></h2>'
+          +'<div class="wyw-legend"><div class="wyw-lg"><span class="wyw-llab">intensity</span><div class="wyw-lscale">'+[0.12,0.3,0.5,0.7,0.95].map(function(a){return '<span class="wyw-sw" style="background:'+cellColor(a)+'"></span>';}).join('')+'</div></div>'
+          +'<div class="wyw-lg"><span class="wyw-dot wyw-dfirst"></span><span class="wyw-bell-mini"></span><span class="wyw-dot wyw-dlast"></span><span class="wyw-ltext">start–end</span></div>'
+          +(view==='day'?'<label class="wyw-tg"><input type="checkbox" '+(showEmpty?'checked':'')+' onchange="wywToggle(\'empty\',true)"> Empty days</label>':'')
+          +'</div>'
+        +'</div>'
+        +candleHtml
+        +'<div class="wyw-scroll"><div class="wyw-barwrap">'
+          +'<div class="wyw-bhead"><div class="wyw-bhlabel"><span class="wyw-corner">'+(view==='week'?'WEEK':'DATE')+'</span></div><div class="wyw-bhtrack">'
+            +ticks.map(function(h){return '<div class="wyw-htick" style="left:'+minToPct(h*60)+'%"><div class="wyw-htline"></div><span class="wyw-htlabel">'+pad(Math.floor((h+CUT)%24))+'</span></div>';}).join('')
+            +'<div class="wyw-htick" style="left:100%"><div class="wyw-htline"></div><span class="wyw-htlabel" style="transform:translateX(-100%)">'+pad(CUT)+'</span></div>'
+            +'<div class="wyw-cutoff"></div>'
+          +'</div><div class="wyw-bhmeta"><span class="wyw-corner">START</span><span class="wyw-corner">END</span><span class="wyw-corner">LEN</span><span class="wyw-corner">EVENTS</span></div></div>'
+          +'<div class="wyw-bbody">';
+
+    var maxSlot=1; rows.forEach(function(r){r.slots.forEach(function(s){if(s.count>maxSlot)maxSlot=s.count;});});
+    var maxTot=1; rows.forEach(function(r){if(r.total>maxTot)maxTot=r.total;});
+
+    rows.forEach(function(r){
+      var wknd = view==='day' ? isWknd(r) : false;
+      var dayoff = view==='day' && !!offSet[r.key];
+      var excl = view==='day' && (wknd||dayoff);
+      var zero = r.total===0;
+      var has = r.first && r.last;
+      var fp=has?minToPct(r.first.minOfDay):0, lp=has?minToPct(r.last.minOfDay):0;
+      var bl=Math.min(fp,lp), bw=Math.abs(lp-fp);
+      var dstr='—'; if(has){var mn=r.last.minOfDay-r.first.minOfDay;dstr=Math.floor(mn/60)+'h '+pad(Math.round(mn%60))+'m';}
+      var evPct=Math.min(100,(r.total/maxTot)*100);
+      var lab = view==='week' ? (MO[r.date.getMonth()]+' '+pad(r.date.getDate())) : fmtDate(r.date);
+      html+='<div class="wyw-row'+(wknd?' weekend':'')+(dayoff?' wyw-dayoff':'')+(zero?' wyw-zero':'')+'" style="height:'+(ROWH+6)+'px">';
+      html+='<div class="wyw-rlabel"><span class="wyw-rdate wyw-mono"'+(view==='day'?' title="Click to mark/unmark a day off" onclick="wywToggleDayOff(\''+r.key+'\')"':'')+'>'+lab+(dayoff?' <span class="wyw-offtag">off</span>':'')+'</span></div>';
+      html+='<div class="wyw-rtrack" style="height:'+(ROWH+6)+'px"><div class="wyw-baseline"></div>';
+      ticks.forEach(function(h){html+='<div class="wyw-grid" style="left:'+minToPct(h*60)+'%"></div>';});
+      if(has){
+        r.slots.forEach(function(s,i){if(s.count===0)return;var inten=s.count/maxSlot;html+='<div class="wyw-dens" style="left:'+minToPct(i*GRAN)+'%;width:'+slotW+'%;height:'+ROWH+'px;background:'+cellColor(inten)+'"></div>';});
+        if(bw>0)html+='<div class="wyw-bell" style="left:'+bl+'%;width:'+bw+'%"></div>';
+        html+='<div class="wyw-cap wyw-cfirst" style="left:'+fp+'%"></div><div class="wyw-cap wyw-clast" style="left:'+lp+'%"></div>';
+      }
+      html+='</div>';
+      var t1 = has ? (view==='day' ? fmtTime(r.first.ts) : hhmm(r.first.minOfDay+CUT*60)) : '—';
+      var t2 = has ? (view==='day' ? fmtTime(r.last.ts) : hhmm(r.last.minOfDay+CUT*60)) : '—';
+      html+='<div class="wyw-rmeta"><span class="wyw-rtime wyw-mono">'+t1+'</span><span class="wyw-rtime wyw-mono">'+t2+'</span><span class="wyw-rdur wyw-mono">'+dstr+'</span><span class="wyw-revt wyw-mono">'+r.total+'</span></div>';
+      html+='</div>';
+    });
+    html+='</div></div></div>'
+      +'<footer class="wyw-foot"><span class="wyw-fnote">'+(view==='week'?'Weeks aggregate Mon–Sun. Cells sum activity across 7 days; start/end/length are medians of the week\'s days.':'Logical days — anything before '+pad(CUT)+':00 folds into the previous evening. Click any date to mark it a day off.')+'</span></footer>'
+      +'</section>';
+
+    html+='<aside class="wyw-ins">'
+      +'<section class="wyw-isec"><h3 class="wyw-ih3">Your day shape <span style="text-transform:none;letter-spacing:0;color:#aab;font-weight:400">· weekdays</span></h3><div class="wyw-bigs">'
+        +'<div class="wyw-big"><span class="wyw-bslab">avg. start</span><span class="wyw-bsval wyw-mono">'+hhmm(avgStartMin)+'</span></div>'
+        +'<div class="wyw-big"><span class="wyw-bslab">avg. end</span><span class="wyw-bsval wyw-mono">'+hhmm(avgEndMin%1440)+'</span></div>'
+        +'<div class="wyw-big"><span class="wyw-bslab">typical length</span><span class="wyw-bsval wyw-mono">'+durStr(medDurMin)+'</span></div>'
+        +'<div class="wyw-big"><span class="wyw-bslab">night-owl nights</span><span class="wyw-bsval wyw-mono">'+nightOwl+'<span class="wyw-bsuf"> / '+weekdayRows.length+'</span></span></div>'
+      +'</div></section>'
+      +'<section class="wyw-isec"><h3 class="wyw-ih3">Meetings</h3><div class="wyw-bigs">'
+        +'<div class="wyw-big"><span class="wyw-bslab">per week</span><span class="wyw-bsval wyw-mono">'+mNowPerWk.toFixed(1)+'</span><span class="wyw-bsuf">'+(Math.abs(mDelta)<0.05?'·':(mDelta>0?'▲ +':'▼ '))+(Math.abs(mDelta)<0.05?'':(Math.abs(mDelta).toFixed(1)))+' vs prior 4w</span></div>'
+        +'<div class="wyw-big"><span class="wyw-bslab">total (4w)</span><span class="wyw-bsval wyw-mono">'+mNow+'</span></div>'
+      +'</div></section>'
+    +'</aside>';
+    html+='</div></div>';
+    sec.innerHTML=html;
+  };
+
+  window.ensureConnectPrompts=function(){
+    var AS=(typeof AUTH_STATE!=='undefined')?AUTH_STATE:{};
+    var defs=[
+      {sec:'tab-email',ok:!!AS.microsoft,id:'wyw-cp-email',title:'Connect Microsoft',desc:'Add your email & calendar activity.',cls:'ms',fn:'login()'},
+      {sec:'tab-calendar',ok:!!AS.microsoft,id:'wyw-cp-cal',title:'Connect Microsoft',desc:'Add your calendar activity.',cls:'ms',fn:'login()'},
+      {sec:'tab-slack',ok:!!AS.slack,id:'wyw-cp-slack',title:'Connect Slack',desc:'Add your Slack activity.',cls:'slack',fn:'connectSlack()'}
+    ];
+    defs.forEach(function(d){
+      var sec=document.getElementById(d.sec); if(!sec)return;
+      var ex=document.getElementById(d.id);
+      if(d.ok){ if(ex)ex.remove(); return; }
+      if(d.sec==='tab-slack' && sec.querySelector('.connect-prompt, .btn-slack')){ return; }
+      if(!ex){ var el=document.createElement('div'); el.id=d.id; el.className='wyw-cprompt'; el.innerHTML='<h4>'+d.title+'</h4><p>'+d.desc+'</p><button class="wyw-cbtn '+d.cls+'" onclick="'+d.fn+'">'+d.title+'</button>'; sec.insertBefore(el, sec.firstChild); }
+    });
+  };
+
+  if(!document.getElementById('wyw-css')){
+    if(!document.getElementById('wyw-font')){var fl=document.createElement('link');fl.id='wyw-font';fl.rel='stylesheet';fl.href='https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap';document.head.appendChild(fl);}
+    var st=document.createElement('style'); st.id='wyw-css';
+    st.textContent=
+    '#tab-rhythm{padding:0!important}'+
+    '.wyw-root{--label-w:96px;--meta-w:200px;--ink:#1e2035;--ink2:#454a63;--ink3:#82858f;--ink4:#b5b8c2;--line:#e7e9f0;--line2:#eef0f5;--panel:#fff;--panel2:#f7f8fb;--bg:#ffffff;--accent:#5b6af9;--weekend:#fbf7ee;--first:#e8923a;--last:#7b59c9;--green:#3aa06b;--red:#c44a3e;--amber:#c9931e;font-family:Inter,-apple-system,sans-serif;color:var(--ink);background:var(--panel);border:1px solid var(--line);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}'+
+    '.wyw-mono{font-family:"JetBrains Mono",ui-monospace,monospace;font-variant-numeric:tabular-nums;letter-spacing:-.005em}'+
+    '.wyw-muted{color:var(--ink3);font-weight:400}'+
+    '.wyw-strip{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:14px 22px;border-bottom:1px solid var(--line);background:var(--panel2);flex-wrap:wrap}'+
+    '.wyw-strip-stats{display:flex;gap:28px;align-items:center}'+
+    '.wyw-st{display:flex;flex-direction:column;gap:2px}'+
+    '.wyw-st-lab{font-size:9.5px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;font-weight:600}'+
+    '.wyw-st-val{font-size:15px;font-weight:500;color:var(--ink);white-space:nowrap}'+
+    '.wyw-strip-right{display:flex;align-items:center;gap:18px}'+
+    '.wyw-scoreblock{display:flex;flex-direction:column;gap:3px}'+
+    '.wyw-sb-lab{font-size:9.5px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;font-weight:600}'+
+    '.wyw-sb-row{display:flex;align-items:center;gap:12px}'+
+    '.wyw-sb-val{font-size:28px;font-weight:500;letter-spacing:-.02em;color:var(--ink);line-height:1}'+
+    '.wyw-sb-deltas{display:flex;gap:6px}'+
+    '.wyw-sd{display:flex;flex-direction:column;align-items:center;gap:2px;padding:3px 8px;border-radius:6px;background:var(--panel)}'+
+    '.wyw-sd-label{font-size:8.5px;color:var(--ink3);letter-spacing:.05em;font-weight:600}'+
+    '.wyw-sd-val{font-size:10.5px;font-weight:600}'+
+    '.wyw-sd-good .wyw-sd-val{color:var(--green)}'+
+    '.wyw-sd-bad .wyw-sd-val{color:var(--red)}'+
+    '.wyw-sd-neutral .wyw-sd-val{color:var(--ink3)}'+
+    '.wyw-viewtoggle{display:inline-flex;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:3px}'+
+    '.wyw-vbtn{padding:5px 12px;font-size:11.5px;border:none;background:transparent;border-radius:5px;cursor:pointer;color:var(--ink3);font-family:inherit;font-weight:500}'+
+    '.wyw-vbtn.wyw-vactive{background:var(--ink);color:#fff}'+
+    '.wyw-trends{display:flex;flex-wrap:wrap;gap:8px;padding:10px 22px 12px;border-bottom:1px solid var(--line);background:var(--panel2)}'+
+    '.wyw-chip{display:flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--panel);border:1px solid var(--line);font-size:11px}'+
+    '.wyw-chip-label{color:var(--ink3);text-transform:uppercase;font-size:9.5px;letter-spacing:.06em}'+
+    '.wyw-chip-val{font-weight:600;font-size:11px}'+
+    '.wyw-chip-good .wyw-chip-val{color:var(--green)}'+
+    '.wyw-chip-bad .wyw-chip-val{color:var(--red)}'+
+    '.wyw-chip-neutral .wyw-chip-val{color:var(--ink3)}'+
+    '.wyw-candle{padding:14px 24px 18px;border-bottom:1px solid var(--line)}'+
+    '.wyw-cnd-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px}'+
+    '.wyw-cnd-title{font-size:13px;font-weight:600;color:var(--ink)}'+
+    '.wyw-cnd-sub{font-size:11px;color:var(--ink3)}'+
+    '.wyw-cnd-track{position:relative;height:64px;margin:0 30px}'+
+    '.wyw-cnd-tick{position:absolute;bottom:0;height:100%}'+
+    '.wyw-cnd-tickline{position:absolute;bottom:0;left:0;width:1px;height:6px;background:var(--line)}'+
+    '.wyw-cnd-ticklab{position:absolute;bottom:8px;left:0;font-size:10.5px;color:var(--ink3);transform:translateX(-50%)}'+
+    '.wyw-cnd-wick{position:absolute;top:50%;transform:translateY(-50%);height:2px;background:linear-gradient(to right,var(--first),var(--last));opacity:.45;border-radius:2px}'+
+    '.wyw-cnd-box{position:absolute;top:50%;transform:translateY(-50%);height:18px;background:rgba(91,106,249,.18);border:1.5px solid var(--accent);border-radius:4px}'+
+    '.wyw-cnd-mark{position:absolute;top:0;font-size:10px;color:var(--first);transform:translateX(-50%);font-weight:600}'+
+    '.wyw-cnd-mark2{position:absolute;bottom:-22px;font-size:10px;color:var(--accent);transform:translateX(-50%);font-weight:600}'+
+    '.wyw-cnd-mark-right{color:var(--last)}'+
+    '.wyw-cnd-mark2.wyw-cnd-mark-right{color:var(--accent)}'+
+    '.wyw-main{display:grid;grid-template-columns:minmax(0,1fr) 320px;flex:1;min-height:0}'+
+    '.wyw-pane{display:flex;flex-direction:column;min-height:0;min-width:0;border-right:1px solid var(--line);background:var(--bg)}'+
+    '.wyw-head{display:flex;align-items:flex-end;justify-content:space-between;padding:14px 22px 10px;gap:18px;flex-wrap:wrap}'+
+    '.wyw-ctitle{font-size:15px;font-weight:600;margin:0}'+
+    '.wyw-legend{display:flex;align-items:center;gap:18px;font-size:12px;color:var(--ink2);flex-wrap:wrap}'+
+    '.wyw-lg{display:flex;align-items:center;gap:7px}'+
+    '.wyw-llab{color:var(--ink3);text-transform:uppercase;font-size:10px;letter-spacing:.08em;font-weight:500}'+
+    '.wyw-lscale{display:flex;gap:2px}'+
+    '.wyw-sw{width:18px;height:12px;border-radius:2px;border:1px solid var(--line)}'+
+    '.wyw-dot{width:9px;height:9px;border-radius:50%;display:inline-block}'+
+    '.wyw-dfirst{background:var(--first)}.wyw-dlast{background:var(--last)}'+
+    '.wyw-ltext{font-size:12px;color:var(--ink2)}'+
+    '.wyw-bell-mini{width:16px;height:2px;border-radius:2px;background:linear-gradient(to right,var(--first),var(--last));display:inline-block}'+
+    '.wyw-tg{display:flex;align-items:center;gap:5px;font-size:11.5px;color:var(--ink2);cursor:pointer;user-select:none}.wyw-tg input{accent-color:var(--accent);cursor:pointer;margin:0}'+
+    '.wyw-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding:0 22px 16px;max-height:60vh}'+
+    '.wyw-foot{padding:10px 22px 16px;border-top:1px solid var(--line2);background:var(--panel)}.wyw-fnote{font-size:12px;color:var(--ink3)}'+
+    '.wyw-barwrap{position:relative;width:100%}'+
+    '.wyw-bhead{position:sticky;top:0;z-index:5;display:grid;grid-template-columns:var(--label-w) minmax(0,1fr) var(--meta-w);column-gap:12px;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 0 6px;height:36px}'+
+    '.wyw-bhlabel{display:flex;align-items:flex-end}.wyw-corner{font-size:9.5px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;font-weight:600}'+
+    '.wyw-bhtrack{position:relative;height:100%}'+
+    '.wyw-bhmeta{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;align-items:flex-end;gap:4px;padding-right:4px}.wyw-bhmeta .wyw-corner{text-align:right}'+
+    '.wyw-htick{position:absolute;bottom:0;height:100%}.wyw-htline{position:absolute;bottom:0;left:0;width:1px;height:6px;background:var(--line)}'+
+    '.wyw-htlabel{position:absolute;bottom:8px;left:0;font-family:"JetBrains Mono",ui-monospace,monospace;font-size:10.5px;color:var(--ink3);transform:translateX(-50%)}'+
+    '.wyw-cutoff{position:absolute;top:0;bottom:0;left:0;width:2px;background:rgba(232,146,58,.55)}'+
+    '.wyw-bbody{padding-top:4px}'+
+    '.wyw-row{display:grid;grid-template-columns:var(--label-w) minmax(0,1fr) var(--meta-w);column-gap:12px;align-items:center;position:relative;border-bottom:1px solid var(--line2)}'+
+    '.wyw-row.weekend{background:var(--weekend)}.wyw-row.wyw-dayoff{opacity:.5}'+
+    '.wyw-rlabel{display:flex;align-items:center}.wyw-rdate{font-size:10.5px;color:var(--ink2);font-weight:500}'+
+    '.wyw-row .wyw-rdate{cursor:pointer}.wyw-rdate:hover{color:var(--accent)}'+
+    '.wyw-offtag{font-size:8px;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#b9bdca;border-radius:3px;padding:0 4px;margin-left:3px;vertical-align:middle}'+
+    '.wyw-rtrack{position:relative;width:100%}.wyw-baseline{position:absolute;left:0;right:0;top:50%;height:1px;background:var(--line);transform:translateY(-.5px)}'+
+    '.wyw-grid{position:absolute;top:12%;bottom:12%;width:1px;background:rgba(146,150,170,.16);transform:translateX(-.5px)}'+
+    '.wyw-dens{position:absolute;top:50%;transform:translateY(-50%);border-radius:1px;mix-blend-mode:multiply}'+
+    '.wyw-bell{position:absolute;top:50%;transform:translateY(-50%);height:2px;border-radius:2px;background:linear-gradient(to right,var(--first),var(--last));opacity:.45;z-index:1}'+
+    '.wyw-cap{position:absolute;top:50%;width:8px;height:8px;border-radius:50%;transform:translate(-50%,-50%);box-shadow:0 0 0 1.5px var(--bg);z-index:2}.wyw-row.weekend .wyw-cap{box-shadow:0 0 0 1.5px var(--weekend)}'+
+    '.wyw-cfirst{background:var(--first)}.wyw-clast{background:var(--last)}'+
+    '.wyw-rmeta{display:grid;grid-template-columns:1fr 1fr 1fr 1fr;align-items:center;gap:4px;padding-right:4px}.wyw-rmeta>span{text-align:right;font-size:10.5px}'+
+    '.wyw-rtime{color:var(--ink2);font-weight:500}.wyw-rdur,.wyw-revt{color:var(--ink3)}'+
+    '.wyw-ins{background:var(--panel);overflow-y:auto;padding:18px 20px 24px;display:flex;flex-direction:column;gap:20px;max-height:60vh}'+
+    '.wyw-isec{display:flex;flex-direction:column;gap:12px}'+
+    '.wyw-ih3{margin:0;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--ink3)}'+
+    '.wyw-bigs{display:grid;grid-template-columns:1fr 1fr;gap:12px}'+
+    '.wyw-big{display:flex;flex-direction:column;gap:4px;padding:12px;background:var(--panel2);border:1px solid var(--line);border-radius:8px}'+
+    '.wyw-bslab{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-weight:500}'+
+    '.wyw-bsval{font-size:20px;font-weight:500;letter-spacing:-.02em}'+
+    '.wyw-bsuf{font-size:11px;color:var(--ink3);font-weight:400;margin-top:2px}'+
+    '.wyw-cprompt{margin:22px auto;max-width:460px;text-align:center;padding:28px 24px;background:#f7f8fb;border:1px solid #e7e9f0;border-radius:14px}.wyw-cprompt h4{margin:0 0 6px;font-size:16px;color:#1e2035}.wyw-cprompt p{margin:0 0 16px;font-size:13px;color:#82858f}.wyw-cbtn{display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;color:#fff;font-family:inherit}.wyw-cbtn.ms{background:#2f6fed}.wyw-cbtn.slack{background:#4A154B}';
+    document.head.appendChild(st);
+  }
+  if(!document.getElementById('tab-rhythm')){
+    var bar=document.getElementById('main-tab-bar');
+    if(bar){var btn=document.createElement('button');btn.className='tab-btn';btn.setAttribute('data-tab','rhythm');btn.setAttribute('onclick',"showTab('rhythm')");btn.innerHTML='<span class="tab-icon">🌙</span> Rhythm';bar.appendChild(btn);}
+    var actSec=document.getElementById('tab-activity');
+    var sec=document.createElement('section');sec.className='tab-section';sec.id='tab-rhythm';sec.setAttribute('data-tab','rhythm');
+    if(actSec&&actSec.parentNode){actSec.parentNode.insertBefore(sec,actSec.nextSibling);}else{var mn=document.querySelector('main'); if(mn) mn.appendChild(sec);}
+  }
+  if(typeof showTab==='function' && !showTab.__wyw){
+    var o=showTab;
+    showTab=function(t){var r=o.apply(this,arguments); try{window.ensureConnectPrompts();}catch(e){} if(t==='rhythm'){try{window.renderWhenYouWork();}catch(e){console.error('wyw',e);}} return r;};
+    showTab.__wyw=true;
+  }
+  if(typeof updateAuthBadges==='function' && !updateAuthBadges.__wyw){
+    var ub=updateAuthBadges; updateAuthBadges=function(){var r=ub.apply(this,arguments); try{window.ensureConnectPrompts();}catch(e){} return r;};
+    updateAuthBadges.__wyw=true;
+  }
+  try{window.ensureConnectPrompts();}catch(e){}
+})();/*WYW_END*/</script>
 </body>
 </html>
