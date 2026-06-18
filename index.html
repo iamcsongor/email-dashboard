@@ -1027,6 +1027,11 @@
     <button class="btn-demo" onclick="loadDemoData()">
       <span class="btn-demo-icon">✦</span> Try with demo data
     </button>
+    <button class="btn-demo" style="margin-top:8px" onclick="document.getElementById('snapshot-file-input').click()">
+      <span class="btn-demo-icon">📦</span> Load saved snapshot (.json)
+    </button>
+    <input type="file" id="snapshot-file-input" accept="application/json,.json" style="display:none"
+           onchange="importSnapshotFromFile(this.files[0]); this.value='';">
   </div>
 </div>
 
@@ -2084,6 +2089,220 @@ function loadDemoData() {
   renderCalendarDashboard();
   renderActivityDashboard();
   buildAndRenderRelationships();
+  renderSnapshotPill();
+}
+
+// ════════════════════════════════════════════════
+// SNAPSHOT / OFFLINE MODE  (MVP prototyping convenience)
+// ════════════════════════════════════════════════
+// Goal: don't re-pull Microsoft + Slack on every reload. After one real sync the
+// data is cached in IndexedDB and auto-loaded on the next load (zero clicks). A
+// portable JSON file (Export / Import) is the seed/backup that survives across
+// browsers and origins. Force a fresh live pull with the pill button or ?live=1.
+// NOTE: snapshots contain real comms content — never commit them (see .gitignore).
+const SNAPSHOT_SCHEMA = "comms-dashboard-snapshot-v1";
+const SNAPSHOT_DB     = "comms-dashboard";
+const SNAPSHOT_STORE  = "snapshots";
+const SNAPSHOT_KEY    = "current";
+let IS_SNAPSHOT  = false;   // true when data was loaded from cache/file (skip live APIs)
+let SNAPSHOT_META = null;   // { origin:'cache'|'file'|'live', savedAt, exportedAt }
+
+// ── IndexedDB helpers (data stays in this browser only) ──
+function _idbOpen() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(SNAPSHOT_DB, 1);
+    req.onupgradeneeded = () => { req.result.createObjectStore(SNAPSHOT_STORE); };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = () => reject(req.error);
+  });
+}
+function idbSaveSnapshot(obj) {
+  return _idbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(SNAPSHOT_STORE, "readwrite");
+    tx.objectStore(SNAPSHOT_STORE).put(obj, SNAPSHOT_KEY);
+    tx.oncomplete = () => { db.close(); resolve(true); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
+  }));
+}
+function idbLoadSnapshot() {
+  return _idbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(SNAPSHOT_STORE, "readonly");
+    const g  = tx.objectStore(SNAPSHOT_STORE).get(SNAPSHOT_KEY);
+    g.onsuccess = () => { db.close(); resolve(g.result || null); };
+    g.onerror   = () => { db.close(); reject(g.error); };
+  }));
+}
+function idbClearSnapshot() {
+  return _idbOpen().then(db => new Promise((resolve, reject) => {
+    const tx = db.transaction(SNAPSHOT_STORE, "readwrite");
+    tx.objectStore(SNAPSHOT_STORE).delete(SNAPSHOT_KEY);
+    tx.oncomplete = () => { db.close(); resolve(true); };
+    tx.onerror    = () => { db.close(); reject(tx.error); };
+  }));
+}
+
+// ── Serialize current in-memory globals into a portable object ──
+// Calendar start/end are Date objects → store as ISO strings.
+function buildSnapshotObject() {
+  return {
+    schema:     SNAPSHOT_SCHEMA,
+    version:    1,
+    savedAt:    new Date().toISOString(),
+    account:    (document.getElementById("account-badge") || {}).textContent || null,
+    monthsBack: MONTHS_BACK,
+    counts: {
+      received: ALL_RECEIVED.length, sent: ALL_SENT.length,
+      calendar: CALENDAR_DATA.length, slack: SLACK_DATA.messages.length
+    },
+    email:    { received: ALL_RECEIVED, sent: ALL_SENT },
+    calendar: CALENDAR_DATA.map(e => Object.assign({}, e, {
+      start: e.start instanceof Date ? e.start.toISOString() : e.start,
+      end:   e.end   instanceof Date ? e.end.toISOString()   : e.end
+    })),
+    slack: {
+      myUserId: SLACK_DATA.myUserId,
+      users:    SLACK_DATA.users,
+      channels: SLACK_DATA.channels,
+      messages: SLACK_DATA.messages
+    }
+  };
+}
+
+// ── Load a snapshot object into globals + render (mirrors loadDemoData) ──
+function applySnapshot(snap, origin) {
+  if (!snap || typeof snap !== "object") { alert("Invalid snapshot."); return; }
+  if (snap.schema && snap.schema !== SNAPSHOT_SCHEMA) {
+    console.warn("Snapshot schema mismatch:", snap.schema, "(continuing anyway)");
+  }
+  IS_DEMO     = false;
+  IS_SNAPSHOT = true;
+  SNAPSHOT_META = { origin: origin || "cache", savedAt: snap.savedAt || null, exportedAt: snap.exportedAt || null };
+  MONTHS_BACK = snap.monthsBack || MONTHS_BACK || 18;
+
+  const email = snap.email || {};
+  ALL_RECEIVED = email.received || [];
+  ALL_SENT     = email.sent     || [];
+
+  // Revive calendar Date objects (renderers + activity signals need real Dates)
+  CALENDAR_DATA = (snap.calendar || []).map(e => Object.assign({}, e, {
+    start: e.start ? new Date(e.start) : null,
+    end:   e.end   ? new Date(e.end)   : null
+  }));
+
+  const slack = snap.slack || {};
+  SLACK_DATA = {
+    messages: slack.messages || [],
+    channels: slack.channels || [],
+    users:    slack.users    || [],
+    myUserId: slack.myUserId || null
+  };
+
+  AUTH_STATE.microsoft = (ALL_RECEIVED.length > 0 || ALL_SENT.length > 0 || CALENDAR_DATA.length > 0);
+  AUTH_STATE.slack     = SLACK_DATA.messages.length > 0;
+
+  const badge = document.getElementById("account-badge");
+  if (badge) badge.textContent = snap.account || "Snapshot";
+  ["overview-label", "slack-overview-label", "cal-overview-label"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = MONTHS_BACK + "-month overview";
+  });
+
+  showScreen("dashboard");
+  updateAuthBadges();
+  if (SLACK_DATA.messages.length)  showSlackCharts();
+  if (CALENDAR_DATA.length)        showCalCharts();
+  showActContent();
+  showRelContent();
+
+  renderDashboard(ALL_RECEIVED, ALL_SENT);
+  renderSlackDashboard();
+  renderCalendarDashboard();
+  renderActivityDashboard();
+  buildAndRenderRelationships();
+  renderSnapshotPill();
+  console.log("Snapshot loaded (" + SNAPSHOT_META.origin + "):", snap.counts || {});
+}
+
+// ── Save current globals to the IndexedDB cache (called after live fetches) ──
+async function saveSnapshotToCache() {
+  if (IS_DEMO) return; // never cache demo data
+  if (!ALL_RECEIVED.length && !ALL_SENT.length && !SLACK_DATA.messages.length && !CALENDAR_DATA.length) return;
+  try {
+    await idbSaveSnapshot(buildSnapshotObject());
+    SNAPSHOT_META = { origin: "live", savedAt: new Date().toISOString() };
+    // After a forced live pull, drop ?live so the next reload uses the fresh cache.
+    if (location.search.indexOf("live") !== -1) history.replaceState(null, "", location.pathname);
+    renderSnapshotPill();
+  } catch (e) { console.warn("Snapshot cache save failed:", e); }
+}
+
+// ── Export a portable JSON file (seed / backup / move between machines) ──
+function exportSnapshotFile() {
+  if (!ALL_RECEIVED.length && !ALL_SENT.length && !SLACK_DATA.messages.length && !CALENDAR_DATA.length) {
+    alert("No data loaded to export yet."); return;
+  }
+  _downloadJsonBlob(buildSnapshotObject(), `comms-snapshot-${_dateStamp()}.json`);
+}
+
+// ── Import a JSON file via the file picker, then persist it to cache ──
+function importSnapshotFromFile(file) {
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const snap = JSON.parse(reader.result);
+      applySnapshot(snap, "file");
+      try { await idbSaveSnapshot(buildSnapshotObject()); } catch (e) { console.warn("cache after import failed", e); }
+    } catch (e) { alert("Could not read snapshot file: " + e.message); }
+  };
+  reader.readAsText(file);
+}
+
+// ── Force a fresh live pull (re-auth if needed), then re-cache ──
+function refreshFromLive() {
+  if (!confirm("Pull fresh data from Microsoft + Slack? This re-syncs and may ask you to sign in.")) return;
+  const u = new URL(location.href);
+  u.searchParams.set("live", "1");
+  u.hash = "";
+  location.href = u.toString();
+}
+
+async function clearSnapshotCache() {
+  if (!confirm("Delete the cached snapshot from this browser? The live login and any exported file are unaffected.")) return;
+  try { await idbClearSnapshot(); } catch (e) {}
+  alert("Cached snapshot cleared. Use “Refresh from live” to pull fresh data.");
+}
+
+// ── Floating status pill on the dashboard ──
+const _PILL_BTN = "margin-left:6px;padding:3px 9px;border-radius:999px;border:1px solid rgba(255,255,255,0.18);background:rgba(255,255,255,0.06);color:#e8eaf0;font:600 11px/1 Inter,system-ui,sans-serif;cursor:pointer";
+function renderSnapshotPill() {
+  const dash = document.getElementById("dashboard");
+  let pill = document.getElementById("snapshot-pill");
+  const onDash = dash && dash.style.display !== "none";
+  if (!onDash) { if (pill) pill.remove(); return; }
+  if (!pill) {
+    pill = document.createElement("div");
+    pill.id = "snapshot-pill";
+    pill.style.cssText = "position:fixed;left:16px;bottom:16px;z-index:99999;display:flex;gap:4px;align-items:center;" +
+      "background:rgba(18,20,26,0.92);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);" +
+      "border:1px solid rgba(255,255,255,0.12);border-radius:999px;padding:6px 8px 6px 12px;" +
+      "font:600 12px/1.2 Inter,system-ui,sans-serif;color:#e8eaf0;box-shadow:0 6px 20px rgba(0,0,0,0.35)";
+    document.body.appendChild(pill);
+  }
+  const mode = IS_DEMO ? "demo" : (IS_SNAPSHOT ? "snapshot" : "live");
+  let dot = "#7aa2ff", label = "Live data";
+  if (mode === "snapshot") {
+    dot = "#36d399";
+    const when = SNAPSHOT_META && (SNAPSHOT_META.savedAt || SNAPSHOT_META.exportedAt);
+    const src  = SNAPSHOT_META && SNAPSHOT_META.origin === "file" ? "file" : "cached";
+    label = "Snapshot · " + src + (when ? " · " + new Date(when).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "");
+  } else if (mode === "demo") { dot = "#c9931e"; label = "Demo data"; }
+  pill.innerHTML =
+    '<span style="width:8px;height:8px;border-radius:50%;background:' + dot + ';box-shadow:0 0 6px ' + dot + '"></span>' +
+    '<span style="opacity:0.95">' + label + '</span>' +
+    (mode !== "live" ? '<button style="' + _PILL_BTN + '" onclick="refreshFromLive()">Refresh from live</button>' : '') +
+    '<button style="' + _PILL_BTN + '" onclick="exportSnapshotFile()" title="Download a portable JSON snapshot">Export</button>' +
+    (mode === "snapshot" ? '<button style="' + _PILL_BTN + ';border-color:rgba(255,120,110,0.4);color:#ffb4ab" onclick="clearSnapshotCache()" title="Delete cached snapshot">Clear</button>' : '');
 }
 
 // ════════════════════════════════════════════════
@@ -2221,6 +2440,17 @@ async function init() {
   handleSlackHash();
 
   await msalInstance.initialize();
+
+  // Snapshot/offline mode: if a cached snapshot exists and we're not forcing a
+  // live pull (?live=1) or returning from Slack OAuth, load it and skip live APIs.
+  const _forceLive = new URLSearchParams(location.search).has("live");
+  if (!_forceLive && !_justConnectedSlack) {
+    try {
+      const snap = await idbLoadSnapshot();
+      if (snap) { applySnapshot(snap, "cache"); return; }
+    } catch (e) { console.warn("Snapshot cache load failed:", e); }
+  }
+
   const accounts = msalInstance.getAllAccounts();
   const hasMicrosoft = accounts.length > 0;
 
@@ -2329,6 +2559,9 @@ async function signOut() {
   ALL_SENT = [];
   REL_CONTACTS = [];
   IS_DEMO = false;
+  IS_SNAPSHOT = false;
+  SNAPSHOT_META = null;
+  { const p = document.getElementById("snapshot-pill"); if (p) p.remove(); }
   sessionStorage.removeItem("slack_token");
   sessionStorage.removeItem("slack_user_id");
   showScreen("login-screen");
@@ -2408,6 +2641,8 @@ async function fetchAndRender() {
       fetchSlackAndRender();
     }
 
+    saveSnapshotToCache(); // cache email (calendar/slack re-save when they finish)
+
   } catch (err) {
     showScreen("login-screen");
     showError("Failed to load data: " + err.message);
@@ -2427,14 +2662,26 @@ async function slackAPI(method, params = {}) {
 
   let retries = 0;
   while (retries < 5) {
-    const resp = await fetch("/api/slack-proxy", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Slack-Token": SLACK_TOKEN,
-      },
-      body: JSON.stringify({ method, params }),
-    });
+    let resp;
+    try {
+      const ctrl = new AbortController();
+      const tmo = setTimeout(() => ctrl.abort(), 30000); // 30s safety: never hang on one call
+      resp = await fetch("/api/slack-proxy", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Slack-Token": SLACK_TOKEN,
+        },
+        body: JSON.stringify({ method, params }),
+        signal: ctrl.signal,
+      });
+      clearTimeout(tmo);
+    } catch (e) {
+      console.warn(`Slack ${method} request error (${e.name || e.message}); retry ${retries + 1}/5`);
+      await new Promise(r => setTimeout(r, Math.pow(2, retries + 1) * 1000));
+      retries++;
+      continue;
+    }
     if (resp.status === 429) {
       // Read retry_after from body (more reliable than headers through proxy)
       let retryAfter = 5;
@@ -2459,17 +2706,23 @@ async function fetchSlackUsers() {
 }
 
 async function fetchSlackConversations() {
+  // users.conversations returns ONLY the conversations the signed-in user belongs to.
+  // (conversations.list returns the ENTIRE workspace — thousands of public channels —
+  // which made enumeration page for minutes and hit rate limits. That was the "hang".)
   const all = [];
   let cursor = "";
+  let page = 0;
   do {
-    const params = { types: "public_channel,private_channel,mpim,im", limit: "200" };
+    const params = { types: "public_channel,private_channel,mpim,im", limit: "200", exclude_archived: "true" };
     if (cursor) params.cursor = cursor;
-    const data = await slackAPI("conversations.list", params);
+    const data = await slackAPI("users.conversations", params);
     all.push(...(data.channels || []));
     cursor = data.response_metadata?.next_cursor || "";
+    page++;
+    setLoading("Fetching Slack channels…", `${all.length} channels found`, 20);
+    if (page > 50) { console.warn("users.conversations: stopping after 50 pages (safety cap)"); break; }
   } while (cursor);
-  // Filter to only channels user is a member of (skips 800+ public channels they never use)
-  return all.filter(ch => ch.is_member || ch.is_im || ch.is_mpim);
+  return all; // already only the user's own conversations
 }
 
 async function fetchSlackHistory(channelId, oldest) {
@@ -2499,7 +2752,7 @@ async function fetchSlackAndRender() {
     // Skip archived channels
     const convos = allConvos.filter(ch => !ch.is_archived);
     SLACK_DATA.channels = convos;
-    console.log(`Slack: ${convos.length} active member channels (filtered from conversations.list)`);
+    console.log(`Slack: ${convos.length} of your channels/DMs (via users.conversations)`);
 
     const cutoff = Math.floor(Date.now() / 1000) - (MONTHS_BACK || 12) * 30.44 * 86400;
     const messages = [];
@@ -2549,6 +2802,7 @@ async function fetchSlackAndRender() {
     if (AUTH_STATE.microsoft && ALL_RECEIVED.length > 0) {
       buildAndRenderRelationships();
     }
+    saveSnapshotToCache(); // re-cache now that Slack is in
   } catch (err) {
     console.error("Slack fetch error:", err);
     showScreen("dashboard");
@@ -2754,6 +3008,7 @@ async function fetchCalendarAndRender() {
     if (ALL_RECEIVED.length > 0 || SLACK_DATA.messages.length > 0) {
       buildAndRenderRelationships();
     }
+    saveSnapshotToCache(); // re-cache now that calendar is in
   } catch (err) {
     console.error("Calendar fetch error:", err);
     // Non-fatal: just log it; email/slack still work

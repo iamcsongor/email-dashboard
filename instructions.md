@@ -97,8 +97,15 @@ No `package.json`, no bundler. External libs load from CDN at runtime.
   `code` for a user token → redirects back with the token in the **URL hash** (never query string).
 - API calls: browser → `POST /api/slack-proxy` with the token in an `x-slack-token` header
   (proxy needed because Slack's Web API has no browser CORS).
-- Proxy method **whitelist**: `users.list`, `conversations.list`, `conversations.history`.
+- Proxy method **whitelist**: `users.list`, `users.conversations`, `conversations.list`, `conversations.history`.
+- Channel enumeration uses **`users.conversations`** (only the signed-in user's channels/DMs), **not**
+  `conversations.list` (which returns the whole workspace and caused a fetch hang). Covered by existing
+  scopes (`channels:read`, `groups:read`, `im:read`, `mpim:read`).
+- `slackAPI()` throttles ≥1.2s between calls, retries 429s with backoff, and has a **30s per-call
+  timeout** (AbortController) so a stalled request can't hang the app.
 - Pulls: users, channels/conversations, message history, reactions.
+- ⚠️ Per-channel history still pages over `MONTHS_BACK` (default 18) — for users in many busy channels
+  this can be slow (shows per-channel progress). Lever: lower the time-range slider before syncing.
 
 ### Demo mode
 - `loadDemoData()` + `generateDemoData()` / `generateSlackDemoData()` / `generateCalendarDemoData()`
@@ -142,9 +149,14 @@ All session state is plain globals (no DB):
 | `REL_CONTACTS` | Merged cross-channel relationship contacts |
 | `AUTH_STATE` | `{ microsoft: bool, slack: bool }` |
 | `IS_DEMO` | true after demo data loaded |
+| `IS_SNAPSHOT` | true when data was loaded from snapshot cache/file (skips live APIs) |
+| `SNAPSHOT_META` | `{ origin: 'cache'\|'file'\|'live', savedAt, exportedAt }` for the status pill |
 
 **Persistent (localStorage)** — Rhythm view prefs, prefix `wyw_` ("when you work"):
 `wyw_view`, `wyw_daysoff`, `wyw_tg_<name>`.
+
+**Persistent (IndexedDB)** — DB `comms-dashboard`, store `snapshots`, key `current`: the cached
+data snapshot used for offline/prototyping reloads (see §10 → *Snapshot / offline mode*).
 
 ---
 
@@ -208,6 +220,31 @@ Screens: `login-screen` → `loading-screen` → `dashboard` (`showScreen()`).
   The Slack `/api` functions only run on Vercel (or `vercel dev`).
 - **Redirect URIs** must be registered: in Azure (for `CLIENT_ID`) and Slack app config, for both
   the production origin and any local origin used for testing.
+
+### Snapshot / offline mode (prototyping — avoid re-syncing on every reload)
+
+So you don't re-pull Microsoft + Slack every time you tweak the app, data is cached locally and
+reused until you explicitly refresh.
+
+- **First sync (or "Refresh from live"):** the app fetches live, renders, and **auto-saves** the
+  combined data (email + calendar + Slack) to **IndexedDB** (`comms-dashboard` → `snapshots` → `current`).
+- **Every reload after that:** `init()` finds the cached snapshot and loads it instantly — **no auth,
+  no API calls**. `IS_SNAPSHOT = true`; live fetches are skipped (same idea as Demo Mode).
+- **Force a fresh live pull:** the **Refresh from live** button (or add `?live=1` to the URL). After a
+  successful live pull the `?live` param is stripped so the *next* reload uses the new cache again.
+- **Portable file:** **Export** writes `comms-snapshot-<date>.json` (the seed/backup, works across
+  browsers/origins). On the login screen, **Load saved snapshot (.json)** imports a file and also
+  re-caches it. Single combined file covers all three sources; calendar `start`/`end` are stored as
+  ISO and revived to `Date` on import.
+- **Status pill** (bottom-left of dashboard): shows mode (Live / Snapshot · cached|file · time / Demo)
+  with Refresh / Export / Clear actions.
+- **Reset:** **Clear** (pill) deletes the cache; **Sign out** clears in-memory state + the pill.
+- **Privacy:** snapshots contain real comms content → **never commit them.** Patterns are gitignored
+  (`comms-snapshot-*.json`, `comms-emails-*.json`, `comms-slack-*.json`, `*.snapshot.json`, `snapshot*.json`).
+  This is an MVP-only convenience; the real product needs a proper backend/store, not a browser cache.
+- **Key functions** (all in `index.html`, main script scope): `idbSaveSnapshot/idbLoadSnapshot/idbClearSnapshot`,
+  `buildSnapshotObject`, `applySnapshot`, `saveSnapshotToCache`, `exportSnapshotFile`,
+  `importSnapshotFromFile`, `refreshFromLive`, `clearSnapshotCache`, `renderSnapshotPill`.
 
 ---
 
@@ -273,6 +310,17 @@ Screens: `login-screen` → `loading-screen` → `dashboard` (`showScreen()`).
 
 > Append a dated entry every session. Newest at top.
 
+- **2026-06-17** — **Fixed Slack ingestion hang.** Root cause: `fetchSlackConversations` used
+  `conversations.list` (entire workspace, thousands of channels) throttled at 1.2s/call → minutes of
+  paging + 429s, stuck at "Fetching Slack channels…". Switched to `users.conversations` (user's own
+  conversations only) + added `users.conversations` to the proxy whitelist, live channel-count progress,
+  and a 30s per-call timeout in `slackAPI`. **Requires a Vercel deploy** (proxy change). No re-auth needed.
+- **2026-06-17** — Built **snapshot / offline mode** for prototyping: combined data (email + calendar +
+  Slack) auto-caches to IndexedDB after each live fetch and auto-loads on reload (no re-auth); portable
+  JSON Export/Import; `?live=1` + "Refresh from live" to force a real sync; status pill with
+  Refresh/Export/Clear; login-screen file importer. Added `IS_SNAPSHOT`/`SNAPSHOT_META` globals and
+  gitignored snapshot files. Docs: new §10 subsection + §7 state additions. (Decision: IndexedDB cache
+  + JSON file; primary run target = live Vercel URL.)
 - **2026-06-17** — Added Azure app-registration deep link (built from `CLIENT_ID`) and the Slack app
   dashboard link to §1, with notes on the Entra alt URL and the Slack per-app direct-link template
   (App ID `Axxxx` still to be captured — `SLACK_CLIENT_ID` is not the App ID).

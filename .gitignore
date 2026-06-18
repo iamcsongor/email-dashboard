@@ -4,3 +4,10 @@
 *.pem
 node_modules/
 .deploy/
+
+# Local data snapshots — contain real email/Slack content. NEVER commit these.
+comms-snapshot-*.json
+comms-emails-*.json
+comms-slack-*.json
+*.snapshot.json
+snapshot*.json

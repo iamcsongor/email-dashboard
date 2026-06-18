@@ -17,7 +17,8 @@ export default async function handler(req, res) {
   // Whitelist allowed Slack methods
   const ALLOWED = [
     "users.list",
-    "conversations.list",
+    "users.conversations",   // user's own channels/DMs only (avoids whole-workspace enumeration)
+    "conversations.list",    // kept for fallback / compatibility
     "conversations.history",
   ];
   if (!ALLOWED.includes(method)) {
