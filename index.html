@@ -2154,7 +2154,7 @@ function buildSnapshotObject() {
       received: ALL_RECEIVED.length, sent: ALL_SENT.length,
       calendar: CALENDAR_DATA.length, slack: SLACK_DATA.messages.length
     },
-    email:    { received: ALL_RECEIVED, sent: ALL_SENT },
+    email:    { received: ALL_RECEIVED, sent: ALL_SENT, fetchMeta: EMAIL_FETCH_META || null },
     calendar: CALENDAR_DATA.map(e => Object.assign({}, e, {
       start: e.start instanceof Date ? e.start.toISOString() : e.start,
       end:   e.end   instanceof Date ? e.end.toISOString()   : e.end
@@ -2183,6 +2183,7 @@ function applySnapshot(snap, origin) {
   const email = snap.email || {};
   ALL_RECEIVED = email.received || [];
   ALL_SENT     = email.sent     || [];
+  EMAIL_FETCH_META = email.fetchMeta || null;
 
   // Revive calendar Date objects (renderers + activity signals need real Dates)
   CALENDAR_DATA = (snap.calendar || []).map(e => Object.assign({}, e, {
@@ -2323,6 +2324,7 @@ let MONTHS_BACK = 18;
 // ════════════════════════════════════════════════
 let ALL_RECEIVED = [];
 let ALL_SENT     = [];
+let EMAIL_FETCH_META = null;
 
 // ── Slack state ──
 let AUTH_STATE   = { microsoft: false, slack: false };
@@ -2559,6 +2561,7 @@ async function signOut() {
   CALENDAR_DATA = [];
   ALL_RECEIVED = [];
   ALL_SENT = [];
+  EMAIL_FETCH_META = null;
   REL_CONTACTS = [];
   IS_DEMO = false;
   IS_SNAPSHOT = false;
@@ -2596,6 +2599,51 @@ async function fetchAllPages(firstUrl, onCount) {
   return all;
 }
 
+function buildEmailFetchMeta(recv, sent, sinceISO, account) {
+  const countMap = (items, getKey, getLabel) => {
+    const m = {};
+    items.forEach(it => {
+      const k = getKey(it);
+      if (!k) return;
+      if (!m[k]) m[k] = { key: k, label: getLabel(it) || k, count: 0 };
+      m[k].count++;
+    });
+    return Object.values(m).sort((a, b) => b.count - a.count);
+  };
+  const topSenders = countMap(recv, m => m.from?.emailAddress?.address?.toLowerCase(), m => m.from?.emailAddress?.name || m.from?.emailAddress?.address);
+  const topRecipients = countMap(sent, m => (m.toRecipients?.[0]?.emailAddress?.address || "").toLowerCase(), m => m.toRecipients?.[0]?.emailAddress?.name || m.toRecipients?.[0]?.emailAddress?.address);
+  const topDomains = countMap(recv, m => (m.from?.emailAddress?.address || "").split("@")[1]?.toLowerCase(), m => (m.from?.emailAddress?.address || "").split("@")[1]);
+  const convMap = {};
+  [...recv, ...sent].forEach(m => {
+    const cid = m.conversationId;
+    if (!cid) return;
+    if (!convMap[cid]) convMap[cid] = { id: cid, subject: m.subject || "(no subject)", received: 0, sent: 0, total: 0 };
+    if (m.receivedDateTime) convMap[cid].received++;
+    else convMap[cid].sent++;
+    convMap[cid].total++;
+    if (m.subject && m.subject.length > convMap[cid].subject.length) convMap[cid].subject = m.subject;
+  });
+  const conversationStats = Object.values(convMap).sort((a, b) => b.total - a.total);
+  return {
+    fetchedAt: new Date().toISOString(),
+    monthsBack: MONTHS_BACK || 18,
+    sinceISO,
+    account: account || null,
+    receivedCount: recv.length,
+    sentCount: sent.length,
+    unreadCount: recv.filter(m => m.isRead === false).length,
+    readCount: recv.filter(m => m.isRead === true).length,
+    attachmentCount: [...recv, ...sent].filter(m => m.hasAttachments).length,
+    uniqueSenders: topSenders.length,
+    uniqueRecipients: topRecipients.length,
+    uniqueConversations: conversationStats.length,
+    topSenders: topSenders.slice(0, 30),
+    topRecipients: topRecipients.slice(0, 30),
+    topDomains: topDomains.slice(0, 20),
+    conversationStats: conversationStats.slice(0, 50),
+  };
+}
+
 async function fetchAndRender() {
   const since = new Date();
   if (MONTHS_BACK === 0) {
@@ -2628,6 +2676,7 @@ async function fetchAndRender() {
     const account = msalInstance.getActiveAccount();
     document.getElementById("account-badge").textContent = account?.username || "";
     AUTH_STATE.microsoft = true;
+    EMAIL_FETCH_META = buildEmailFetchMeta(ALL_RECEIVED, ALL_SENT, sinceISO, account?.username || null);
     updateAuthBadges();
 
     renderDashboard(ALL_RECEIVED, ALL_SENT);
@@ -6165,7 +6214,8 @@ init();
     reaction:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>',
     sentiment:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.5 2 3.5 2 3.5-2 3.5-2"/><circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/></svg>',
     social:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v4l13 6V5L3 11z"/><path d="M16 5v16M20 8v10"/></svg>',
-    slackdebug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>'
+    slackdebug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>',
+    emaildebug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>'
   };
 
   var NAV=[
@@ -6176,10 +6226,11 @@ init();
     {id:'reaction',     label:'Reaction Time',     sub:'effort & responsiveness'},
     {id:'sentiment',    label:'Sentiment Analysis',sub:'language & mindset', placeholder:true},
     {id:'social',       label:'Social Brand Rep',  sub:'ambassador signal', placeholder:true},
-    {id:'slackdebug',   label:'Slack Breakdown',   sub:'raw data & diagnostics', debug:true}
+    {id:'slackdebug',   label:'Slack Breakdown',   sub:'raw data & diagnostics', debug:true, debugKind:'slack'},
+    {id:'emaildebug',   label:'Email Breakdown',   sub:'raw data & diagnostics', debug:true, debugKind:'email'}
   ];
   var SCORED_NAV=NAV.filter(function(n){return !n.debug && !n.placeholder;});
-  var DESC={rhythm:'When and how do you work? Cadence, peak hours, and balance.',engagement:'How much do you communicate? Volume across channels and trends.',participation:'Visibility in meetings — frequency, organization role, and group size.',presence:'Time and availability — working hours, consistency, night-owl tendency.',reaction:'Effort and responsiveness — how quickly you reply to messages.',sentiment:'Language and mindset — tone, positivity, and emotional signal.',social:'Ambassador signal — public engagement and brand representation.',slackdebug:'Full Slack pull diagnostics — channel coverage, daily counts, and raw messages to troubleshoot sync gaps.'};
+  var DESC={rhythm:'When and how do you work? Cadence, peak hours, and balance.',engagement:'How much do you communicate? Volume across channels and trends.',participation:'Visibility in meetings — frequency, organization role, and group size.',presence:'Time and availability — working hours, consistency, night-owl tendency.',reaction:'Effort and responsiveness — how quickly you reply to messages.',sentiment:'Language and mindset — tone, positivity, and emotional signal.',social:'Ambassador signal — public engagement and brand representation.',slackdebug:'Full Slack pull diagnostics — channel coverage, daily counts, and raw messages to troubleshoot sync gaps.',emaildebug:'Full Outlook/email pull diagnostics — sender breakdown, daily counts, threads, and raw messages to troubleshoot sync gaps.'};
 
   function byDay(acts){
     var m={};
@@ -6237,13 +6288,16 @@ init();
     return current;
   }
 
-  var state={active:'rhythm', slackDbgChannel:'all', slackDbgDir:'all', slackDbgLimit:200, engVariant:1};
+  var state={active:'rhythm', slackDbgChannel:'all', slackDbgDir:'all', slackDbgLimit:200, emailDbgDir:'all', emailDbgContact:'all', emailDbgLimit:200, engVariant:1};
   window.bfNav=function(id){state.active=id;renderShell();};
   window.bfEngagementChannel=function(c){state.engChannel=c;renderShell();};
   window.bfEngVariant=function(v){state.engVariant=v;renderShell();};
   window.bfSlackDbgChannel=function(c){state.slackDbgChannel=c;renderShell();};
   window.bfSlackDbgDir=function(d){state.slackDbgDir=d;renderShell();};
   window.bfSlackDbgLimit=function(n){state.slackDbgLimit=Math.max(50,Math.min(500,parseInt(n)||200));renderShell();};
+  window.bfEmailDbgDir=function(d){state.emailDbgDir=d;renderShell();};
+  window.bfEmailDbgContact=function(c){state.emailDbgContact=c;renderShell();};
+  window.bfEmailDbgLimit=function(n){state.emailDbgLimit=Math.max(50,Math.min(500,parseInt(n)||200));renderShell();};
 
   function scoreDeltaChip(label, dv){
     var positive=dv>=0; var sign=positive?'+':'−'; var ab=Math.abs(Math.round(dv));
@@ -6260,15 +6314,18 @@ init();
     var bftone=tierTone(overall);
     var navItem=NAV.find(function(n){return n.id===state.active;})||NAV[0];
     var slackDbgCount=(function(){try{var sd=typeof SLACK_DATA!=='undefined'?SLACK_DATA:null;return sd&&sd.messages?sd.messages.length:0;}catch(e){return 0;}})();
+    var emailDbgCount=(function(){try{return ((typeof ALL_RECEIVED!=='undefined'?ALL_RECEIVED:[]).length+(typeof ALL_SENT!=='undefined'?ALL_SENT:[]).length);}catch(e){return 0;}})();
 
     var navHtml=NAV.map(function(n,i){
       var ac=state.active===n.id;
       if(n.debug){
-        return '<button class="bf-navitem bf-nav-debug'+(ac?' bf-active':'')+'" onclick="bfNav(\''+n.id+'\')" style="--tcolor:#d4663f">'
+        var dbgCount=n.debugKind==='email'?emailDbgCount:slackDbgCount;
+        var dbgColor=n.debugKind==='email'?'#5e7798':'#d4663f';
+        return '<button class="bf-navitem bf-nav-debug'+(ac?' bf-active':'')+'" onclick="bfNav(\''+n.id+'\')" style="--tcolor:'+dbgColor+'">'
           +'<span class="bf-navnum">'+pad(i+1)+'</span>'
           +'<span class="bf-navicon">'+(ICONS[n.id]||'')+'</span>'
           +'<span class="bf-navtext"><span class="bf-navlabel">'+n.label+'</span><span class="bf-navsub">'+n.sub+'</span></span>'
-          +'<span class="bf-navscore"><span class="bf-navnum2 bf-mono" style="color:#d4663f;font-size:12px">'+slackDbgCount.toLocaleString()+'</span><span class="bf-navbar"><span style="width:100%;background:#d4663f"></span></span></span>'
+          +'<span class="bf-navscore"><span class="bf-navnum2 bf-mono" style="color:'+dbgColor+';font-size:12px">'+dbgCount.toLocaleString()+'</span><span class="bf-navbar"><span style="width:100%;background:'+dbgColor+'"></span></span></span>'
         +'</button>';
       }
       var s=scores[n.id]||0, t=tierTone(s), c=tierColor(s);
@@ -6301,10 +6358,10 @@ init();
       +'<nav class="bf-nav">'+navHtml+'</nav>'
      +'</aside>'
      +'<main class="bf-main">'
-      +(state.active==='slackdebug'||state.active==='engagement'?''
+      +(state.active==='slackdebug'||state.active==='emaildebug'||state.active==='engagement'?''
         :'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
         +'<div class="bf-tiles">'+renderTiles()+'</div>')
-      +(state.active==='slackdebug'||state.active==='engagement'?''
+      +(state.active==='slackdebug'||state.active==='emaildebug'||state.active==='engagement'?''
         :'<div class="bf-signal-head bf-mono"><span class="bf-headicon">'+(ICONS[navItem.id]||'')+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>')
       +'<div class="bf-signal-pane" id="bf-pane">'+renderSignal(state.active, scores)+'</div>'
      +'</main></div>';
@@ -6338,6 +6395,7 @@ init();
 
   function renderSignal(id, scores){
     if(id==='slackdebug') return renderSlackDebugPanel();
+    if(id==='emaildebug') return renderEmailDebugPanel();
     if(id==='engagement') return renderEngagement(scores);
     var idx=NAV.findIndex(function(n){return n.id===id;});
     var nav=NAV[idx];
@@ -6850,6 +6908,177 @@ init();
         +'<div class="bf-sdbg-scroll bf-sdbg-scroll-tall"><table class="bf-sdbg-tbl bf-sdbg-msgtbl"><thead><tr><th>Time</th><th>Channel</th><th>User</th><th>Dir</th><th>Message</th></tr></thead><tbody>'+(feedRows||'<tr><td colspan="5">No messages match filters</td></tr>')+'</tbody></table></div></div>';
   }
 
+  function fmtEmailTs(iso){
+    if(!iso) return '—';
+    var d=new Date(iso);
+    return isNaN(d.getTime())?'—':d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  }
+  function fmtEmailDate(iso){
+    if(!iso) return '—';
+    var d=new Date(iso);
+    return isNaN(d.getTime())?'—':d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});
+  }
+  function getEmailDbg(){
+    return {
+      recv:(typeof ALL_RECEIVED!=='undefined'?ALL_RECEIVED:[]),
+      sent:(typeof ALL_SENT!=='undefined'?ALL_SENT:[]),
+      meta:(typeof EMAIL_FETCH_META!=='undefined'?EMAIL_FETCH_META:null)
+    };
+  }
+
+  function renderEmailDebugPanel(){
+    var ed=getEmailDbg(), recv=ed.recv, sent=ed.sent, meta=ed.meta;
+    var total=recv.length+sent.length;
+    var snapMeta=typeof SNAPSHOT_META!=='undefined'?SNAPSHOT_META:null;
+    var snapOrigin=snapMeta?snapMeta.origin:'unknown';
+    var snapAt=snapMeta&&snapMeta.savedAt?snapMeta.savedAt:(meta?meta.fetchedAt:null);
+    var monthsBack=typeof MONTHS_BACK!=='undefined'?MONTHS_BACK:18;
+    var account=(document.getElementById('account-badge')||{}).textContent||meta?.account||'—';
+    var warnings=[];
+    if(!total) warnings.push('No email messages loaded — connect Microsoft and run Refresh from live.');
+    if(!meta) warnings.push('No fetch diagnostics (fetchMeta) — data is from an old cached snapshot. Click Refresh from live for sender/thread stats.');
+    if(recv.length===0&&sent.length>0) warnings.push('Inbox is empty but sent items exist — check Graph permissions or inbox filter.');
+    if(sent.length===0&&recv.length>0) warnings.push('Sent folder is empty — only received mail was captured.');
+
+    var allMsgs=[];
+    recv.forEach(function(m){allMsgs.push({dir:'recv', m:m, ts:m.receivedDateTime, sortTs:m.receivedDateTime?new Date(m.receivedDateTime).getTime():0});});
+    sent.forEach(function(m){allMsgs.push({dir:'sent', m:m, ts:m.sentDateTime, sortTs:m.sentDateTime?new Date(m.sentDateTime).getTime():0});});
+    var tsArr=allMsgs.map(function(x){return x.sortTs;}).filter(Boolean);
+    var minTs=tsArr.length?Math.min.apply(null,tsArr):null;
+    var maxTs=tsArr.length?Math.max.apply(null,tsArr):null;
+    var spanDays=minTs&&maxTs?Math.max(1,Math.ceil((maxTs-minTs)/86400000)):0;
+    var avgDay=spanDays?(total/spanDays).toFixed(1):'0';
+
+    var byDay={};
+    allMsgs.forEach(function(x){
+      if(!x.sortTs) return;
+      var d=new Date(x.sortTs), k=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      if(!byDay[k]) byDay[k]={total:0,sent:0,recv:0,contacts:{},ts:d.getTime()};
+      byDay[k].total++;
+      if(x.dir==='sent') byDay[k].sent++; else byDay[k].recv++;
+      var c=x.dir==='recv'?(x.m.from?.emailAddress?.address||''):((x.m.toRecipients?.[0]?.emailAddress?.address)||'');
+      if(c) byDay[k].contacts[c.toLowerCase()]=(byDay[k].contacts[c.toLowerCase()]||0)+1;
+    });
+    var dayKeys=Object.keys(byDay).sort(function(a,b){return byDay[b].ts-byDay[a].ts;});
+
+    var unread=recv.filter(function(m){return m.isRead===false;}).length;
+    var attach=[...recv,...sent].filter(function(m){return m.hasAttachments;}).length;
+    var convCount=new Set(allMsgs.map(function(x){return x.m.conversationId;}).filter(Boolean)).size;
+
+    var fDir=state.emailDbgDir||'all', fContact=state.emailDbgContact||'all', lim=state.emailDbgLimit||200;
+    var feed=allMsgs.slice().sort(function(a,b){return b.sortTs-a.sortTs;});
+    if(fDir==='sent') feed=feed.filter(function(x){return x.dir==='sent';});
+    else if(fDir==='recv') feed=feed.filter(function(x){return x.dir==='recv';});
+    if(fContact!=='all'){
+      var fc=fContact.toLowerCase();
+      feed=feed.filter(function(x){
+        if(x.dir==='recv') return (x.m.from?.emailAddress?.address||'').toLowerCase()===fc;
+        return (x.m.toRecipients||[]).some(function(r){return (r.emailAddress?.address||'').toLowerCase()===fc;});
+      });
+    }
+    feed=feed.slice(0,lim);
+
+    var contactOpts='<option value="all"'+(fContact==='all'?' selected':'')+'>All contacts</option>';
+    var contactSet={};
+    recv.forEach(function(m){var a=(m.from?.emailAddress?.address||'').toLowerCase(); if(a) contactSet[a]=m.from?.emailAddress?.name||a;});
+    sent.forEach(function(m){(m.toRecipients||[]).forEach(function(r){var a=(r.emailAddress?.address||'').toLowerCase(); if(a) contactSet[a]=r.emailAddress?.name||a;});});
+    Object.keys(contactSet).sort(function(a,b){return contactSet[a].localeCompare(contactSet[b]);}).slice(0,200).forEach(function(a){
+      contactOpts+='<option value="'+escHtml(a)+'"'+(fContact===a?' selected':'')+'>'+escHtml(contactSet[a])+'</option>';
+    });
+
+    var dirChip=function(k,lab){return '<button class="bf-chip'+(fDir===k?' bf-active':'')+'" onclick="bfEmailDbgDir(\''+k+'\')">'+lab+'</button>';};
+    var warnHtml=warnings.length?'<div class="bf-sdbg-warn">'+warnings.map(function(w){return '<div class="bf-sdbg-warnrow">⚠ '+escHtml(w)+'</div>';}).join('')+'</div>':'';
+    var stat=function(label,val,sub){return '<div class="bf-sdbg-stat"><div class="bf-sdbg-stat-l bf-mono">'+label+'</div><div class="bf-sdbg-stat-v bf-mono">'+val+'</div><div class="bf-sdbg-stat-s">'+sub+'</div></div>';};
+
+    var topSenders=(meta&&meta.topSenders)?meta.topSenders:[];
+    if(!topSenders.length){
+      var sm={};
+      recv.forEach(function(m){var a=(m.from?.emailAddress?.address||'').toLowerCase(); if(!a)return; if(!sm[a]) sm[a]={label:m.from?.emailAddress?.name||a,key:a,count:0}; sm[a].count++;});
+      topSenders=Object.values(sm).sort(function(a,b){return b.count-a.count;});
+    }
+    var topRecipients=(meta&&meta.topRecipients)?meta.topRecipients:[];
+    if(!topRecipients.length){
+      var rm={};
+      sent.forEach(function(m){(m.toRecipients||[]).forEach(function(r){var a=(r.emailAddress?.address||'').toLowerCase(); if(!a)return; if(!rm[a]) rm[a]={label:r.emailAddress?.name||a,key:a,count:0}; rm[a].count++;});});
+      topRecipients=Object.values(rm).sort(function(a,b){return b.count-a.count;});
+    }
+    var topDomains=(meta&&meta.topDomains)?meta.topDomains:[];
+    var convStats=(meta&&meta.conversationStats)?meta.conversationStats:[];
+    if(!convStats.length){
+      var cm={};
+      allMsgs.forEach(function(x){var c=x.m.conversationId; if(!c)return; if(!cm[c]) cm[c]={id:c,subject:x.m.subject||'(no subject)',received:0,sent:0,total:0}; if(x.dir==='recv') cm[c].received++; else cm[c].sent++; cm[c].total++;});
+      convStats=Object.values(cm).sort(function(a,b){return b.total-a.total;});
+    }
+
+    var senderRows=topSenders.slice(0,25).map(function(s,i){return '<tr><td class="bf-mono">'+(i+1)+'</td><td>'+escHtml(s.label)+'</td><td class="bf-mono">'+escHtml(s.key)+'</td><td class="bf-mono bf-sdbg-num">'+s.count.toLocaleString()+'</td></tr>';}).join('');
+    var recipRows=topRecipients.slice(0,25).map(function(s,i){return '<tr><td class="bf-mono">'+(i+1)+'</td><td>'+escHtml(s.label)+'</td><td class="bf-mono">'+escHtml(s.key)+'</td><td class="bf-mono bf-sdbg-num">'+s.count.toLocaleString()+'</td></tr>';}).join('');
+    var domainRows=topDomains.slice(0,20).map(function(d,i){return '<tr><td class="bf-mono">'+(i+1)+'</td><td class="bf-mono">'+escHtml(d.label||d.key)+'</td><td class="bf-mono bf-sdbg-num">'+d.count.toLocaleString()+'</td></tr>';}).join('');
+    var convRows=convStats.slice(0,40).map(function(c){
+      return '<tr><td class="bf-sdbg-ch" title="'+escHtml(c.id)+'">'+escHtml((c.subject||'').slice(0,60))+((c.subject||'').length>60?'…':'')+'</td>'
+        +'<td class="bf-mono bf-sdbg-num">'+c.total+'</td><td class="bf-mono bf-sdbg-num">'+c.received+'</td><td class="bf-mono bf-sdbg-num">'+c.sent+'</td></tr>';
+    }).join('');
+    var dayTableRows=dayKeys.slice(0,60).map(function(k){var d=byDay[k]; return '<tr><td class="bf-mono">'+k+'</td><td class="bf-mono bf-sdbg-num">'+d.total+'</td><td class="bf-mono bf-sdbg-num">'+d.sent+'</td><td class="bf-mono bf-sdbg-num">'+d.recv+'</td><td class="bf-mono bf-sdbg-num">'+Object.keys(d.contacts).length+'</td></tr>';}).join('');
+
+    var feedRows=feed.map(function(x){
+      var m=x.m, subj=(m.subject||'(no subject)').replace(/\n/g,' ').trim();
+      var from=x.dir==='recv'?(m.from?.emailAddress?.name||m.from?.emailAddress?.address||'?'):(m.from?.emailAddress?.address||account);
+      var to=x.dir==='sent'?(m.toRecipients||[]).map(function(r){return r.emailAddress?.name||r.emailAddress?.address;}).filter(Boolean).join(', ')||'—':account;
+      var preview=(m.bodyPreview||'').replace(/\n/g,' ').trim();
+      var flags='';
+      if(m.hasAttachments) flags+=' <span class="bf-sdbg-badge bf-sdbg-b-thread">attach</span>';
+      if(x.dir==='recv'&&m.isRead===false) flags+=' <span class="bf-sdbg-badge bf-sdbg-b-unread">unread</span>';
+      return '<tr class="bf-sdbg-msg bf-sdbg-'+x.dir+'"><td class="bf-mono bf-sdbg-ts">'+fmtEmailTs(x.ts)+'</td>'
+        +'<td><span class="bf-sdbg-badge bf-sdbg-b-'+x.dir+'">'+x.dir+'</span>'+flags+'</td>'
+        +'<td class="bf-sdbg-ch" title="'+escHtml(subj)+'">'+escHtml(subj.slice(0,72))+(subj.length>72?'…':'')+'</td>'
+        +'<td class="bf-sdbg-email-addr">'+escHtml(from)+' → '+escHtml(to)+'</td>'
+        +'<td class="bf-sdbg-text">'+escHtml(preview.slice(0,240))+(preview.length>240?'…':'')+'</td></tr>';
+    }).join('');
+
+    return ''
+      +'<div class="bf-sigcard bf-sdbg-head bf-sdbg-head-email"><div class="bf-sigmeta bf-mono">09 / '+pad(NAV.length)+' · EMAIL DIAGNOSTICS</div>'
+        +'<div class="bf-sigtitle">Email Breakdown</div><div class="bf-sigdesc">'+DESC.emaildebug+'</div>'
+        +'<div class="bf-sdbg-actions"><button class="bf-chip" onclick="refreshFromLive()">↻ Refresh from live</button><button class="bf-chip" onclick="exportSnapshotFile()">Export snapshot</button></div></div>'
+      +warnHtml
+      +'<div class="bf-sdbg-stats">'
+        +stat('Total emails',total.toLocaleString(),'received + sent')
+        +stat('Received',recv.length.toLocaleString(),'inbox')
+        +stat('Sent',sent.length.toLocaleString(),'sent items')
+        +stat('Unread',unread.toLocaleString(),'in received')
+        +stat('Attachments',attach.toLocaleString(),'both folders')
+        +stat('Conversations',convCount.toLocaleString(),'unique threads')
+        +stat('Avg / day',avgDay,spanDays+' day span')
+        +stat('Date range',fmtEmailDate(minTs?new Date(minTs).toISOString():null)+' →',fmtEmailDate(maxTs?new Date(maxTs).toISOString():null))
+      +'</div>'
+      +'<div class="bf-sigcard bf-sdbg-meta"><div class="bf-card-label">SYNC METADATA</div>'
+        +'<div class="bf-sdbg-kv"><span>Data source</span><span class="bf-mono">'+escHtml(snapOrigin)+(typeof IS_SNAPSHOT!=='undefined'&&IS_SNAPSHOT?' (snapshot)':' (live)')+'</span></div>'
+        +'<div class="bf-sdbg-kv"><span>Saved / fetched</span><span class="bf-mono">'+escHtml(snapAt||'—')+'</span></div>'
+        +'<div class="bf-sdbg-kv"><span>Account</span><span class="bf-mono">'+escHtml(account)+'</span></div>'
+        +'<div class="bf-sdbg-kv"><span>Lookback</span><span class="bf-mono">'+monthsBack+' mo · since '+escHtml(meta?meta.sinceISO?.slice(0,10):'—')+'</span></div>'
+        +(meta?(
+          '<div class="bf-sdbg-kv"><span>Inbox / sent counts</span><span class="bf-mono">'+meta.receivedCount+' / '+meta.sentCount+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Read / unread</span><span class="bf-mono">'+meta.readCount+' / '+meta.unreadCount+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Unique senders</span><span class="bf-mono">'+meta.uniqueSenders+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Unique recipients</span><span class="bf-mono">'+meta.uniqueRecipients+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Graph endpoints</span><span class="bf-mono">inbox + sentitems · $top=100 paginated</span></div>'
+        ):'<div class="bf-sdbg-kv"><span>Fetch meta</span><span class="bf-sdbg-err">Not available — refresh from live</span></div>')
+      +'</div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">DAILY VOLUME · NEWEST '+Math.min(60,dayKeys.length)+' DAYS</div>'
+        +'<div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>Date</th><th>Total</th><th>Sent</th><th>Recv</th><th>Contacts</th></tr></thead><tbody>'+(dayTableRows||'<tr><td colspan="5">No data</td></tr>')+'</tbody></table></div></div>'
+      +'<div class="bf-sig-grid">'
+        +'<div class="bf-sigcard"><div class="bf-card-label">TOP SENDERS · RECEIVED</div><div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>#</th><th>Name</th><th>Address</th><th>Msgs</th></tr></thead><tbody>'+(senderRows||'<tr><td colspan="4">No data</td></tr>')+'</tbody></table></div></div>'
+        +'<div class="bf-sigcard"><div class="bf-card-label">TOP RECIPIENTS · SENT</div><div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>#</th><th>Name</th><th>Address</th><th>Msgs</th></tr></thead><tbody>'+(recipRows||'<tr><td colspan="4">No data</td></tr>')+'</tbody></table></div></div>'
+      +'</div>'
+      +'<div class="bf-sig-grid">'
+        +'<div class="bf-sigcard"><div class="bf-card-label">TOP DOMAINS · RECEIVED</div><div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>#</th><th>Domain</th><th>Msgs</th></tr></thead><tbody>'+(domainRows||'<tr><td colspan="3">No data</td></tr>')+'</tbody></table></div></div>'
+        +'<div class="bf-sigcard"><div class="bf-card-label">CONVERSATION THREADS · TOP '+Math.min(40,convStats.length)+'</div><div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>Subject</th><th>Total</th><th>Recv</th><th>Sent</th></tr></thead><tbody>'+(convRows||'<tr><td colspan="4">No data</td></tr>')+'</tbody></table></div></div>'
+      +'</div>'
+      +'<div class="bf-sigcard bf-sdbg-feed"><div class="bf-card-label">RAW EMAILS · NEWEST '+feed.length
+        +'<span class="bf-sdbg-filters"><select class="bf-sdbg-sel bf-mono" onchange="bfEmailDbgContact(this.value)">'+contactOpts+'</select>'
+        +dirChip('all','All')+dirChip('sent','Sent')+dirChip('recv','Received')
+        +'<select class="bf-sdbg-sel bf-mono" onchange="bfEmailDbgLimit(this.value)"><option value="100"'+(lim===100?' selected':'')+'>100</option><option value="200"'+(lim===200?' selected':'')+'>200</option><option value="500"'+(lim===500?' selected':'')+'>500</option></select></span></div>'
+        +'<div class="bf-sdbg-scroll bf-sdbg-scroll-tall"><table class="bf-sdbg-tbl bf-sdbg-msgtbl bf-sdbg-emailtbl"><thead><tr><th>Time</th><th>Dir</th><th>Subject</th><th>From → To</th><th>Preview</th></tr></thead><tbody>'+(feedRows||'<tr><td colspan="5">No emails match filters</td></tr>')+'</tbody></table></div></div>';
+  }
+
   function renderFullPlaceholder(id){
     var msg = id==='sentiment'
       ? 'Sentiment requires reading message content. The current architecture stores only metadata (timestamps, sources, types) — never message bodies — so this signal stays dark. Enable opt-in content storage server-side to light it up.'
@@ -6968,6 +7197,7 @@ init();
     '.bf-pmix-sub{font-size:11px;color:var(--ink-3);margin-left:auto}'+
     '.bf-pmix-chart{margin-top:6px;border-radius:6px;overflow:hidden}'+
     '.bf-nav-debug .bf-navicon{background:#fff5f0;border-color:#f0cdb8;color:#d4663f}'+
+    '.bf-nav-debug[style*="5e7798"] .bf-navicon,.bf-navitem.bf-active.bf-nav-debug[style*="5e7798"] .bf-navicon{background:#eef2f7;border-color:#c5d0de;color:#5e7798}'+
     '.bf-sdbg-head{position:relative}'+
     '.bf-sdbg-actions{position:absolute;top:22px;right:24px;display:flex;gap:6px;flex-wrap:wrap}'+
     '.bf-sdbg-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'+
@@ -6998,6 +7228,9 @@ init();
     '.bf-sdbg-ts{white-space:nowrap;font-size:10px;color:var(--ink-3)}'+
     '.bf-sdbg-badge{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}'+
     '.bf-sdbg-b-sent{background:#fde8e6;color:#c44a3e}.bf-sdbg-b-recv{background:#e8ecfd;color:#5b6af9}.bf-sdbg-b-thread{background:var(--surface-2);color:var(--ink-3)}'+
+    '.bf-sdbg-b-unread{background:#e8ecfd;color:#5b6af9}'+
+    '.bf-sdbg-email-addr{font-size:10px;color:var(--ink-3);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}'+
+    '.bf-sdbg-emailtbl .bf-sdbg-text{max-width:360px}'+
     '.bf-sdbg-sent td{background:rgba(212,102,63,.03)}.bf-sdbg-recv td{background:rgba(91,106,249,.03)}'+
     '.tnum{font-variant-numeric:tabular-nums}'+
     '.bf-engv{display:flex;flex-direction:column;gap:18px}'+
