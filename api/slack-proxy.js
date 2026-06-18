@@ -20,6 +20,7 @@ export default async function handler(req, res) {
     "users.conversations",   // user's own channels/DMs only (avoids whole-workspace enumeration)
     "conversations.list",    // kept for fallback / compatibility
     "conversations.history",
+    "conversations.replies", // thread replies (not included in channel history)
   ];
   if (!ALLOWED.includes(method)) {
     return res.status(403).json({ error: `Method ${method} not allowed` });

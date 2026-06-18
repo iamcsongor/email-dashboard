@@ -2163,7 +2163,8 @@ function buildSnapshotObject() {
       myUserId: SLACK_DATA.myUserId,
       users:    SLACK_DATA.users,
       channels: SLACK_DATA.channels,
-      messages: SLACK_DATA.messages
+      messages: SLACK_DATA.messages,
+      fetchMeta: SLACK_DATA.fetchMeta || null
     }
   };
 }
@@ -2194,7 +2195,8 @@ function applySnapshot(snap, origin) {
     messages: slack.messages || [],
     channels: slack.channels || [],
     users:    slack.users    || [],
-    myUserId: slack.myUserId || null
+    myUserId: slack.myUserId || null,
+    fetchMeta: slack.fetchMeta || null
   };
 
   AUTH_STATE.microsoft = (ALL_RECEIVED.length > 0 || ALL_SENT.length > 0 || CALENDAR_DATA.length > 0);
@@ -2325,7 +2327,7 @@ let ALL_SENT     = [];
 // ── Slack state ──
 let AUTH_STATE   = { microsoft: false, slack: false };
 let SLACK_TOKEN  = null;
-let SLACK_DATA   = { messages: [], channels: [], users: [], myUserId: null };
+let SLACK_DATA   = { messages: [], channels: [], users: [], myUserId: null, fetchMeta: null };
 let CALENDAR_DATA = []; // processed calendar events
 let REL_CONTACTS = []; // merged relationship contacts
 let IS_DEMO      = false; // true after loadDemoData(); won't try to call live APIs
@@ -2553,7 +2555,7 @@ async function signOut() {
   }
   AUTH_STATE = { microsoft: false, slack: false };
   SLACK_TOKEN = null;
-  SLACK_DATA = { messages: [], channels: [], users: [], myUserId: null };
+  SLACK_DATA = { messages: [], channels: [], users: [], myUserId: null, fetchMeta: null };
   CALENDAR_DATA = [];
   ALL_RECEIVED = [];
   ALL_SENT = [];
@@ -2738,6 +2740,38 @@ async function fetchSlackHistory(channelId, oldest) {
   return all;
 }
 
+async function fetchSlackThreadReplies(channelId, threadTs, oldest) {
+  const all = [];
+  let cursor = "";
+  do {
+    const params = { channel: channelId, ts: threadTs, limit: "200", oldest: String(oldest) };
+    if (cursor) params.cursor = cursor;
+    const data = await slackAPI("conversations.replies", params);
+    // First message in replies is the parent — skip it (already in history).
+    const msgs = (data.messages || []).filter(m => m.ts !== threadTs);
+    all.push(...msgs);
+    cursor = data.response_metadata?.next_cursor || "";
+  } while (cursor);
+  return all;
+}
+
+function slackMsgToRecord(m, ch, userMap) {
+  const label = ch.name || (ch.is_im ? `DM: ${userMap[ch.user] || ch.user}` : "group");
+  return {
+    ts: parseFloat(m.ts),
+    userId: m.user || m.bot_id || "",
+    userName: userMap[m.user] || m.username || "bot",
+    channelId: ch.id,
+    channelName: label,
+    channelType: ch.is_im ? "dm" : ch.is_mpim ? "group" : ch.is_private ? "private" : "public",
+    text: m.text || "",
+    reactions: m.reactions || [],
+    threadTs: m.thread_ts || null,
+    replyCount: m.reply_count || 0,
+    isReply: !!(m.thread_ts && m.thread_ts !== m.ts),
+  };
+}
+
 async function fetchSlackAndRender() {
   try {
     setLoading("Fetching Slack users…", "", 10);
@@ -2756,32 +2790,71 @@ async function fetchSlackAndRender() {
 
     const cutoff = Math.floor(Date.now() / 1000) - (MONTHS_BACK || 12) * 30.44 * 86400;
     const messages = [];
+    const channelStats = [];
+    const skippedChannels = [];
     let done = 0;
     let skipped = 0;
+    let threadParentsFetched = 0;
+    let threadRepliesAdded = 0;
 
     for (const ch of convos) {
       const label = ch.name || (ch.is_im ? `DM: ${userMap[ch.user] || ch.user}` : "group");
+      const chType = ch.is_im ? "im" : ch.is_mpim ? "mpim" : ch.is_private ? "private" : "public";
+      const beforeLen = messages.length;
+      let chThreadParents = 0;
+      let chReplies = 0;
       try {
         const msgs = await fetchSlackHistory(ch.id, cutoff);
+        const seenTs = new Set();
         msgs.forEach(m => {
-          messages.push({
-            ts: parseFloat(m.ts),
-            userId: m.user || m.bot_id || "",
-            userName: userMap[m.user] || m.username || "bot",
-            channelId: ch.id,
-            channelName: label,
-            channelType: ch.is_im ? "dm" : ch.is_mpim ? "group" : ch.is_private ? "private" : "public",
-            text: m.text || "",
-            reactions: m.reactions || [],
-            threadTs: m.thread_ts || null,
-            replyCount: m.reply_count || 0,
-            isReply: !!(m.thread_ts && m.thread_ts !== m.ts),
-          });
+          messages.push(slackMsgToRecord(m, ch, userMap));
+          seenTs.add(m.ts);
+        });
+        // Thread replies don't appear in channel history — fetch them separately.
+        const threads = msgs
+          .filter(m => (m.reply_count || 0) > 0)
+          .sort((a, b) => (b.reply_count || 0) - (a.reply_count || 0));
+        for (const parent of threads) {
+          chThreadParents++;
+          try {
+            const replies = await fetchSlackThreadReplies(ch.id, parent.ts, cutoff);
+            replies.forEach(m => {
+              if (seenTs.has(m.ts)) return;
+              seenTs.add(m.ts);
+              messages.push(slackMsgToRecord(m, ch, userMap));
+              chReplies++;
+            });
+          } catch (e) {
+            console.warn(`Skipping thread ${parent.ts} in ${label}: ${e.message}`);
+          }
+        }
+        threadParentsFetched += chThreadParents;
+        threadRepliesAdded += chReplies;
+        const channelMsgs = messages.slice(beforeLen);
+        const tsList = channelMsgs.map(m => m.ts);
+        channelStats.push({
+          id: ch.id, name: label, type: chType,
+          historyCount: msgs.length,
+          threadParents: chThreadParents,
+          repliesFetched: chReplies,
+          totalMsgs: channelMsgs.length,
+          sentByMe: channelMsgs.filter(m => m.userId === SLACK_DATA.myUserId).length,
+          threadMsgs: channelMsgs.filter(m => m.isReply).length,
+          oldestTs: tsList.length ? Math.min(...tsList) : null,
+          newestTs: tsList.length ? Math.max(...tsList) : null,
+          error: null
         });
       } catch (e) {
         // Skip channels we can't access (not_in_channel, channel_not_found, etc)
         console.warn(`Skipping ${label}: ${e.message}`);
         skipped++;
+        skippedChannels.push({ id: ch.id, name: label, type: chType, error: e.message });
+        channelStats.push({
+          id: ch.id, name: label, type: chType,
+          historyCount: 0, threadParents: 0, repliesFetched: 0,
+          totalMsgs: 0, sentByMe: 0, threadMsgs: 0,
+          oldestTs: null, newestTs: null, error: e.message
+        });
       }
       done++;
       setLoading("Fetching Slack messages…", `${done}/${convos.length} channels (${messages.length} msgs)`, 20 + (done / convos.length) * 60);
@@ -2789,6 +2862,20 @@ async function fetchSlackAndRender() {
     console.log(`Slack: ${messages.length} messages from ${done - skipped} channels (${skipped} skipped)`);
 
     SLACK_DATA.messages = messages;
+    SLACK_DATA.fetchMeta = {
+      fetchedAt: new Date().toISOString(),
+      monthsBack: MONTHS_BACK || 18,
+      cutoffUnix: cutoff,
+      cutoffDate: new Date(cutoff * 1000).toISOString(),
+      channelsListed: convos.length,
+      channelsOk: convos.length - skipped,
+      channelsSkipped: skipped,
+      messagesTotal: messages.length,
+      threadParentsFetched,
+      threadRepliesAdded,
+      channelStats: channelStats.sort((a, b) => b.totalMsgs - a.totalMsgs),
+      skippedChannels
+    };
     setLoading("Building Slack charts…", "", 90);
     await new Promise(r => setTimeout(r, 200));
 
@@ -3285,12 +3372,12 @@ function buildActivitySignals() {
     if (d && !isNaN(d)) signals.push({ ts: d, source: "email", type: "received" });
   });
 
-  // Slack messages sent by me
+  // Slack messages — sent and received
   SLACK_DATA.messages.forEach(m => {
-    if (m.userId === SLACK_DATA.myUserId) {
-      const d = new Date(m.ts * 1000);
-      if (!isNaN(d)) signals.push({ ts: d, source: "slack", type: "sent" });
-    }
+    const d = new Date(m.ts * 1000);
+    if (isNaN(d)) return;
+    const type = m.userId === SLACK_DATA.myUserId ? "sent" : "received";
+    signals.push({ ts: d, source: "slack", type });
   });
 
   // Calendar meetings — each meeting registers as activity for its full duration (just start hour)
@@ -5578,7 +5665,6 @@ function initSlider() {
 initSlider();
 init();
 </script>
-<script>/*SLACKFIX_START*/(function(){var MAX_CHANNELS=100,MAX_PAGES=2;if(typeof slackAPI!=='function')return;window.fetchSlackConversations=async function(){var all=[],cursor='';do{var params={types:'public_channel,private_channel,mpim,im',limit:'200'};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.list',params);all.push.apply(all,(data.channels||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';}while(cursor);var mine=all.filter(function(ch){return ch.is_member||ch.is_im||ch.is_mpim;});return mine.slice(0,MAX_CHANNELS);};window.fetchSlackHistory=async function(channelId,oldest){var all=[],cursor='',pages=0;do{var params={channel:channelId,limit:'200',oldest:String(oldest)};if(cursor)params.cursor=cursor;var data=await slackAPI('conversations.history',params);all.push.apply(all,(data.messages||[]));cursor=(data.response_metadata&&data.response_metadata.next_cursor)||'';pages++;}while(cursor&&pages<MAX_PAGES);return all;};})();/*SLACKFIX_END*/</script>
 <script>/*BLOB_SETTINGS_START*/(function __bfSettingsInit(){
   if(!document.getElementById('bf-settings-css')){
     var st=document.createElement('style'); st.id='bf-settings-css';
@@ -6078,7 +6164,8 @@ init();
     presence:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
     reaction:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 4 14h7l-1 8 9-12h-7l1-8z"/></svg>',
     sentiment:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5s1.5 2 3.5 2 3.5-2 3.5-2"/><circle cx="9" cy="10" r=".9" fill="currentColor" stroke="none"/><circle cx="15" cy="10" r=".9" fill="currentColor" stroke="none"/></svg>',
-    social:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v4l13 6V5L3 11z"/><path d="M16 5v16M20 8v10"/></svg>'
+    social:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11v4l13 6V5L3 11z"/><path d="M16 5v16M20 8v10"/></svg>',
+    slackdebug:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>'
   };
 
   var NAV=[
@@ -6088,9 +6175,11 @@ init();
     {id:'presence',     label:'Presence',          sub:'time & availability'},
     {id:'reaction',     label:'Reaction Time',     sub:'effort & responsiveness'},
     {id:'sentiment',    label:'Sentiment Analysis',sub:'language & mindset', placeholder:true},
-    {id:'social',       label:'Social Brand Rep',  sub:'ambassador signal', placeholder:true}
+    {id:'social',       label:'Social Brand Rep',  sub:'ambassador signal', placeholder:true},
+    {id:'slackdebug',   label:'Slack Breakdown',   sub:'raw data & diagnostics', debug:true}
   ];
-  var DESC={rhythm:'When and how do you work? Cadence, peak hours, and balance.',engagement:'How much do you communicate? Volume across channels and trends.',participation:'Visibility in meetings — frequency, organization role, and group size.',presence:'Time and availability — working hours, consistency, night-owl tendency.',reaction:'Effort and responsiveness — how quickly you reply to messages.',sentiment:'Language and mindset — tone, positivity, and emotional signal.',social:'Ambassador signal — public engagement and brand representation.'};
+  var SCORED_NAV=NAV.filter(function(n){return !n.debug && !n.placeholder;});
+  var DESC={rhythm:'When and how do you work? Cadence, peak hours, and balance.',engagement:'How much do you communicate? Volume across channels and trends.',participation:'Visibility in meetings — frequency, organization role, and group size.',presence:'Time and availability — working hours, consistency, night-owl tendency.',reaction:'Effort and responsiveness — how quickly you reply to messages.',sentiment:'Language and mindset — tone, positivity, and emotional signal.',social:'Ambassador signal — public engagement and brand representation.',slackdebug:'Full Slack pull diagnostics — channel coverage, daily counts, and raw messages to troubleshoot sync gaps.'};
 
   function byDay(acts){
     var m={};
@@ -6148,9 +6237,12 @@ init();
     return current;
   }
 
-  var state={active:'rhythm'};
+  var state={active:'rhythm', slackDbgChannel:'all', slackDbgDir:'all', slackDbgLimit:200};
   window.bfNav=function(id){state.active=id;renderShell();};
   window.bfEngagementChannel=function(c){state.engChannel=c;renderShell();};
+  window.bfSlackDbgChannel=function(c){state.slackDbgChannel=c;renderShell();};
+  window.bfSlackDbgDir=function(d){state.slackDbgDir=d;renderShell();};
+  window.bfSlackDbgLimit=function(n){state.slackDbgLimit=Math.max(50,Math.min(500,parseInt(n)||200));renderShell();};
 
   function scoreDeltaChip(label, dv){
     var positive=dv>=0; var sign=positive?'+':'−'; var ab=Math.abs(Math.round(dv));
@@ -6163,12 +6255,22 @@ init();
     var bf=document.getElementById('bf-app');
     if(!bf){bf=document.createElement('div');bf.id='bf-app';bf.className='bf-root';dash.appendChild(bf);}
     var scores=computeScores();
-    var overall=Math.round(NAV.reduce(function(s,n){return s+(scores[n.id]||0);},0)/NAV.length);
+    var overall=Math.round(SCORED_NAV.reduce(function(s,n){return s+(scores[n.id]||0);},0)/Math.max(1,SCORED_NAV.length));
     var bftone=tierTone(overall);
     var navItem=NAV.find(function(n){return n.id===state.active;})||NAV[0];
+    var slackDbgCount=(function(){try{var sd=typeof SLACK_DATA!=='undefined'?SLACK_DATA:null;return sd&&sd.messages?sd.messages.length:0;}catch(e){return 0;}})();
 
     var navHtml=NAV.map(function(n,i){
-      var s=scores[n.id]||0, t=tierTone(s), c=tierColor(s), ac=state.active===n.id;
+      var ac=state.active===n.id;
+      if(n.debug){
+        return '<button class="bf-navitem bf-nav-debug'+(ac?' bf-active':'')+'" onclick="bfNav(\''+n.id+'\')" style="--tcolor:#d4663f">'
+          +'<span class="bf-navnum">'+pad(i+1)+'</span>'
+          +'<span class="bf-navicon">'+(ICONS[n.id]||'')+'</span>'
+          +'<span class="bf-navtext"><span class="bf-navlabel">'+n.label+'</span><span class="bf-navsub">'+n.sub+'</span></span>'
+          +'<span class="bf-navscore"><span class="bf-navnum2 bf-mono" style="color:#d4663f;font-size:12px">'+slackDbgCount.toLocaleString()+'</span><span class="bf-navbar"><span style="width:100%;background:#d4663f"></span></span></span>'
+        +'</button>';
+      }
+      var s=scores[n.id]||0, t=tierTone(s), c=tierColor(s);
       return '<button class="bf-navitem'+(ac?' bf-active':'')+'" onclick="bfNav(\''+n.id+'\')" style="--tcolor:'+c+'">'
         +'<span class="bf-navnum">'+pad(i+1)+'</span>'
         +'<span class="bf-navicon">'+(ICONS[n.id]||'')+'</span>'
@@ -6192,14 +6294,15 @@ init();
       +'<div class="bf-blob bf-tone-'+bftone+'">'
        +'<div class="bf-blob-label bf-mono">BLOB FACTOR</div>'
        +'<div class="bf-blob-score"><span class="bf-mono bf-big">'+overall+'</span><span class="bf-mono bf-of">/ 100</span></div>'
-       +'<div class="bf-blob-status bf-mono"><span class="bf-dot"></span>'+(bftone==='good'?'on track':bftone==='mid'?'monitor':'at risk')+' · '+NAV.length+' signals tracked</div>'
+       +'<div class="bf-blob-status bf-mono"><span class="bf-dot"></span>'+(bftone==='good'?'on track':bftone==='mid'?'monitor':'at risk')+' · '+SCORED_NAV.length+' signals tracked</div>'
       +'</div>'
       +'<div class="bf-signals-label bf-mono">SIGNALS</div>'
       +'<nav class="bf-nav">'+navHtml+'</nav>'
      +'</aside>'
      +'<main class="bf-main">'
-      +'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
-      +'<div class="bf-tiles">'+renderTiles()+'</div>'
+      +(state.active==='slackdebug'?''
+        :'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
+        +'<div class="bf-tiles">'+renderTiles()+'</div>')
       +'<div class="bf-signal-head bf-mono"><span class="bf-headicon">'+(ICONS[navItem.id]||'')+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>'
       +'<div class="bf-signal-pane" id="bf-pane">'+renderSignal(state.active, scores)+'</div>'
      +'</main></div>';
@@ -6232,6 +6335,7 @@ init();
   }
 
   function renderSignal(id, scores){
+    if(id==='slackdebug') return renderSlackDebugPanel();
     var idx=NAV.findIndex(function(n){return n.id===id;});
     var nav=NAV[idx];
     var score=scores[id];
@@ -6395,6 +6499,136 @@ init();
      +'</div>';
   }
 
+  function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+  function getSlackDbg(){try{return typeof SLACK_DATA!=='undefined'&&SLACK_DATA?SLACK_DATA:{messages:[],channels:[],users:[],myUserId:null,fetchMeta:null};}catch(e){return {messages:[],channels:[],users:[],myUserId:null,fetchMeta:null};}}
+  function fmtSlackTs(ts){if(!ts)return '—';var d=new Date(typeof ts==='number'&&ts<1e12?ts*1000:ts);return isNaN(d.getTime())?'—':d.toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});}
+  function fmtSlackDate(ts){if(!ts)return '—';var d=new Date(typeof ts==='number'&&ts<1e12?ts*1000:ts);return isNaN(d.getTime())?'—':d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'});}
+
+  function renderSlackDebugPanel(){
+    var slack=getSlackDbg(), msgs=slack.messages||[], meta=slack.fetchMeta, myId=slack.myUserId;
+    var users=slack.users||[], me=users.find(function(u){return u.id===myId;});
+    var meName=me?(me.real_name||me.name):'(unknown)';
+    var snapMeta=typeof SNAPSHOT_META!=='undefined'?SNAPSHOT_META:null;
+    var snapOrigin=snapMeta?snapMeta.origin:'unknown';
+    var snapAt=snapMeta&&snapMeta.savedAt?snapMeta.savedAt:(meta?meta.fetchedAt:null);
+    var monthsBack=typeof MONTHS_BACK!=='undefined'?MONTHS_BACK:18;
+    var warnings=[];
+    if(!msgs.length) warnings.push('No Slack messages loaded — connect Slack and run Refresh from live.');
+    if(!myId) warnings.push('myUserId is missing — sent/received split may be wrong. Reconnect Slack.');
+    if(!meta) warnings.push('No fetch diagnostics (fetchMeta) — data is from an old cached snapshot. Click Refresh from live for channel-level stats.');
+    if(msgs.length&&myId){
+      var recN=msgs.filter(function(m){return m.userId!==myId;}).length;
+      if(recN===0&&msgs.length>10) warnings.push('All '+msgs.length+' messages are attributed to you (received=0). Verify myUserId '+myId+' matches your Slack account.');
+    }
+    if(meta&&meta.channelsSkipped>0) warnings.push(meta.channelsSkipped+' channel(s) failed to fetch — see Skipped Channels below.');
+
+    var sent=msgs.filter(function(m){return m.userId===myId;});
+    var recv=msgs.filter(function(m){return m.userId!==myId;});
+    var threadMsgs=msgs.filter(function(m){return m.isReply;});
+    var tsArr=msgs.map(function(m){return m.ts;});
+    var minTs=tsArr.length?Math.min.apply(null,tsArr):null;
+    var maxTs=tsArr.length?Math.max.apply(null,tsArr):null;
+    var spanDays=minTs&&maxTs?Math.max(1,Math.ceil((maxTs-minTs)/86400)):0;
+    var avgDay=spanDays?(msgs.length/spanDays).toFixed(1):'0';
+
+    var byDay={};
+    msgs.forEach(function(m){
+      var d=new Date(m.ts*1000), k=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      if(!byDay[k]) byDay[k]={total:0,sent:0,recv:0,channels:{},ts:d.getTime()};
+      byDay[k].total++; if(m.userId===myId) byDay[k].sent++; else byDay[k].recv++;
+      byDay[k].channels[m.channelId]=(byDay[k].channels[m.channelId]||0)+1;
+    });
+    var dayKeys=Object.keys(byDay).sort(function(a,b){return byDay[b].ts-byDay[a].ts;});
+
+    var chMap={};
+    msgs.forEach(function(m){
+      if(!chMap[m.channelId]) chMap[m.channelId]={id:m.channelId,name:m.channelName,type:m.channelType,total:0,sent:0,recv:0,threads:0,oldest:m.ts,newest:m.ts};
+      var c=chMap[m.channelId]; c.total++;
+      if(m.userId===myId) c.sent++; else c.recv++;
+      if(m.isReply) c.threads++;
+      if(m.ts<c.oldest) c.oldest=m.ts; if(m.ts>c.newest) c.newest=m.ts;
+    });
+    var chRows=Object.values(chMap).sort(function(a,b){return b.total-a.total;});
+
+    var uMap={};
+    msgs.forEach(function(m){if(!m.userId)return; if(!uMap[m.userId]) uMap[m.userId]={id:m.userId,name:m.userName||m.userId,count:0}; uMap[m.userId].count++;});
+    var topUsers=Object.values(uMap).sort(function(a,b){return b.count-a.count;}).slice(0,15);
+
+    var fCh=state.slackDbgChannel||'all', fDir=state.slackDbgDir||'all', lim=state.slackDbgLimit||200;
+    var feed=msgs.slice().sort(function(a,b){return b.ts-a.ts;});
+    if(fCh!=='all') feed=feed.filter(function(m){return m.channelId===fCh;});
+    if(fDir==='sent') feed=feed.filter(function(m){return m.userId===myId;});
+    else if(fDir==='recv') feed=feed.filter(function(m){return m.userId!==myId;});
+    feed=feed.slice(0,lim);
+
+    var chOpts='<option value="all"'+(fCh==='all'?' selected':'')+'>All channels ('+chRows.length+')</option>';
+    chRows.forEach(function(c){ chOpts+='<option value="'+escHtml(c.id)+'"'+(fCh===c.id?' selected':'')+'>'+escHtml(c.name)+' ('+c.total+')</option>'; });
+    var dirChip=function(k,lab){return '<button class="bf-chip'+(fDir===k?' bf-active':'')+'" onclick="bfSlackDbgDir(\''+k+'\')">'+lab+'</button>';};
+    var warnHtml=warnings.length?'<div class="bf-sdbg-warn">'+warnings.map(function(w){return '<div class="bf-sdbg-warnrow">⚠ '+escHtml(w)+'</div>';}).join('')+'</div>':'';
+    var stat=function(label,val,sub){return '<div class="bf-sdbg-stat"><div class="bf-sdbg-stat-l bf-mono">'+label+'</div><div class="bf-sdbg-stat-v bf-mono">'+val+'</div><div class="bf-sdbg-stat-s">'+sub+'</div></div>';};
+
+    var metaRows=meta&&meta.channelStats?meta.channelStats:chRows.map(function(c){return {name:c.name,type:c.type,totalMsgs:c.total,sentByMe:c.sent,historyCount:'—',repliesFetched:c.threads,threadMsgs:c.threads,oldestTs:c.oldest,newestTs:c.newest,error:null};});
+    var chTableRows=metaRows.slice(0,80).map(function(c){
+      var recvC=(c.totalMsgs||0)-(c.sentByMe||0);
+      var err=c.error?'<span class="bf-sdbg-err">'+escHtml(c.error)+'</span>':'ok';
+      return '<tr><td class="bf-sdbg-ch">'+escHtml(c.name||'?')+'</td><td class="bf-mono">'+escHtml(c.type||'')+'</td>'
+        +'<td class="bf-mono bf-sdbg-num">'+((c.totalMsgs||0).toLocaleString())+'</td><td class="bf-mono bf-sdbg-num">'+((c.sentByMe||0).toLocaleString())+'</td><td class="bf-mono bf-sdbg-num">'+recvC.toLocaleString()+'</td>'
+        +'<td class="bf-mono bf-sdbg-num">'+(c.historyCount!=null?c.historyCount:'—')+'</td><td class="bf-mono bf-sdbg-num">'+(c.repliesFetched!=null?c.repliesFetched:'—')+'</td><td class="bf-mono bf-sdbg-num">'+(c.threadMsgs!=null?c.threadMsgs:'—')+'</td>'
+        +'<td class="bf-mono">'+fmtSlackDate(c.oldestTs)+'</td><td class="bf-mono">'+fmtSlackDate(c.newestTs)+'</td><td>'+err+'</td></tr>';
+    }).join('');
+    var dayTableRows=dayKeys.slice(0,60).map(function(k){var d=byDay[k]; return '<tr><td class="bf-mono">'+k+'</td><td class="bf-mono bf-sdbg-num">'+d.total+'</td><td class="bf-mono bf-sdbg-num">'+d.sent+'</td><td class="bf-mono bf-sdbg-num">'+d.recv+'</td><td class="bf-mono bf-sdbg-num">'+Object.keys(d.channels).length+'</td></tr>';}).join('');
+    var userRows=topUsers.map(function(u,i){return '<tr><td class="bf-mono">'+(i+1)+'</td><td>'+escHtml(u.name)+(u.id===myId?' <span class="bf-sdbg-me">you</span>':'')+'</td><td class="bf-mono">'+u.id+'</td><td class="bf-mono bf-sdbg-num">'+u.count.toLocaleString()+'</td></tr>';}).join('');
+    var feedRows=feed.map(function(m){
+      var dir=m.userId===myId?'sent':'recv', txt=(m.text||'').replace(/\n/g,' ').trim();
+      if(!txt) txt='(no text — attachment or system message)';
+      return '<tr class="bf-sdbg-msg bf-sdbg-'+dir+'"><td class="bf-mono bf-sdbg-ts">'+fmtSlackTs(m.ts)+'</td><td class="bf-sdbg-ch">'+escHtml(m.channelName)+'</td><td>'+escHtml(m.userName)+'</td>'
+        +'<td><span class="bf-sdbg-badge bf-sdbg-b-'+dir+'">'+dir+'</span>'+(m.isReply?' <span class="bf-sdbg-badge bf-sdbg-b-thread">thread</span>':'')+'</td>'
+        +'<td class="bf-sdbg-text">'+escHtml(txt.slice(0,280))+(txt.length>280?'…':'')+'</td></tr>';
+    }).join('');
+    var skippedRows=(meta&&meta.skippedChannels&&meta.skippedChannels.length)?meta.skippedChannels.map(function(c){
+      return '<tr><td>'+escHtml(c.name)+'</td><td class="bf-mono">'+escHtml(c.type)+'</td><td class="bf-sdbg-err">'+escHtml(c.error)+'</td></tr>';
+    }).join(''):'';
+
+    return ''
+      +'<div class="bf-sigcard bf-sdbg-head"><div class="bf-sigmeta bf-mono">08 / '+pad(NAV.length)+' · SLACK DIAGNOSTICS</div>'
+        +'<div class="bf-sigtitle">Slack Breakdown</div><div class="bf-sigdesc">'+DESC.slackdebug+'</div>'
+        +'<div class="bf-sdbg-actions"><button class="bf-chip" onclick="refreshFromLive()">↻ Refresh from live</button><button class="bf-chip" onclick="exportSnapshotFile()">Export snapshot</button></div></div>'
+      +warnHtml
+      +'<div class="bf-sdbg-stats">'
+        +stat('Total messages',msgs.length.toLocaleString(),'in memory')
+        +stat('Sent (you)',sent.length.toLocaleString(),myId?meName:'no user id')
+        +stat('Received',recv.length.toLocaleString(),'from others')
+        +stat('Thread replies',threadMsgs.length.toLocaleString(),'isReply=true')
+        +stat('Channels w/ msgs',chRows.length.toLocaleString(),(slack.channels||[]).length+' listed')
+        +stat('Avg / day',avgDay,spanDays+' day span')
+        +stat('Date range',fmtSlackDate(minTs)+' →',fmtSlackDate(maxTs))
+        +stat('Lookback',monthsBack+' mo',meta?'cutoff '+fmtSlackDate(meta.cutoffUnix):'from slider')
+      +'</div>'
+      +'<div class="bf-sigcard bf-sdbg-meta"><div class="bf-card-label">SYNC METADATA</div>'
+        +'<div class="bf-sdbg-kv"><span>Data source</span><span class="bf-mono">'+escHtml(snapOrigin)+(typeof IS_SNAPSHOT!=='undefined'&&IS_SNAPSHOT?' (snapshot)':' (live)')+'</span></div>'
+        +'<div class="bf-sdbg-kv"><span>Saved / fetched</span><span class="bf-mono">'+escHtml(snapAt||'—')+'</span></div>'
+        +'<div class="bf-sdbg-kv"><span>myUserId</span><span class="bf-mono">'+escHtml(myId||'—')+' · '+escHtml(meName)+'</span></div>'
+        +(meta?(
+          '<div class="bf-sdbg-kv"><span>Channels listed</span><span class="bf-mono">'+meta.channelsListed+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Channels OK / skipped</span><span class="bf-mono">'+meta.channelsOk+' / '+meta.channelsSkipped+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Top-level history msgs</span><span class="bf-mono">~'+(meta.messagesTotal-meta.threadRepliesAdded)+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Thread parents fetched</span><span class="bf-mono">'+meta.threadParentsFetched+'</span></div>'
+          +'<div class="bf-sdbg-kv"><span>Thread replies added</span><span class="bf-mono">'+meta.threadRepliesAdded+'</span></div>'
+        ):'<div class="bf-sdbg-kv"><span>Fetch meta</span><span class="bf-sdbg-err">Not available — refresh from live</span></div>')
+      +'</div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">DAILY VOLUME · NEWEST '+Math.min(60,dayKeys.length)+' DAYS</div>'
+        +'<div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>Date</th><th>Total</th><th>Sent</th><th>Recv</th><th>Channels</th></tr></thead><tbody>'+(dayTableRows||'<tr><td colspan="5">No data</td></tr>')+'</tbody></table></div></div>'
+      +'<div class="bf-sigcard"><div class="bf-card-label">CHANNEL BREAKDOWN · TOP '+Math.min(80,metaRows.length)+'</div>'
+        +'<div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl bf-sdbg-tbl-wide"><thead><tr><th>Channel</th><th>Type</th><th>Msgs</th><th>Sent</th><th>Recv</th><th>History</th><th>Replies</th><th>Threads</th><th>Oldest</th><th>Newest</th><th>Status</th></tr></thead><tbody>'+(chTableRows||'<tr><td colspan="11">No data</td></tr>')+'</tbody></table></div></div>'
+      +(skippedRows?'<div class="bf-sigcard"><div class="bf-card-label">SKIPPED CHANNELS</div><div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>Channel</th><th>Type</th><th>Error</th></tr></thead><tbody>'+skippedRows+'</tbody></table></div></div>':'')
+      +'<div class="bf-sigcard"><div class="bf-card-label">TOP USERS BY MESSAGE COUNT</div><div class="bf-sdbg-scroll"><table class="bf-sdbg-tbl"><thead><tr><th>#</th><th>Name</th><th>User ID</th><th>Msgs</th></tr></thead><tbody>'+userRows+'</tbody></table></div></div>'
+      +'<div class="bf-sigcard bf-sdbg-feed"><div class="bf-card-label">RAW MESSAGES · NEWEST '+feed.length
+        +'<span class="bf-sdbg-filters"><select class="bf-sdbg-sel bf-mono" onchange="bfSlackDbgChannel(this.value)">'+chOpts+'</select>'
+        +dirChip('all','All')+dirChip('sent','Sent')+dirChip('recv','Received')
+        +'<select class="bf-sdbg-sel bf-mono" onchange="bfSlackDbgLimit(this.value)"><option value="100"'+(lim===100?' selected':'')+'>100</option><option value="200"'+(lim===200?' selected':'')+'>200</option><option value="500"'+(lim===500?' selected':'')+'>500</option></select></span></div>'
+        +'<div class="bf-sdbg-scroll bf-sdbg-scroll-tall"><table class="bf-sdbg-tbl bf-sdbg-msgtbl"><thead><tr><th>Time</th><th>Channel</th><th>User</th><th>Dir</th><th>Message</th></tr></thead><tbody>'+(feedRows||'<tr><td colspan="5">No messages match filters</td></tr>')+'</tbody></table></div></div>';
+  }
+
   function renderFullPlaceholder(id){
     var msg = id==='sentiment'
       ? 'Sentiment requires reading message content. The current architecture stores only metadata (timestamps, sources, types) — never message bodies — so this signal stays dark. Enable opt-in content storage server-side to light it up.'
@@ -6511,7 +6745,39 @@ init();
     '.bf-pmix-num{font-size:28px;font-weight:600;letter-spacing:-.02em}'+
     '.bf-pmix-lab{font-size:12px;color:var(--ink-2)}'+
     '.bf-pmix-sub{font-size:11px;color:var(--ink-3);margin-left:auto}'+
-    '.bf-pmix-chart{margin-top:6px;border-radius:6px;overflow:hidden}';
+    '.bf-pmix-chart{margin-top:6px;border-radius:6px;overflow:hidden}'+
+    '.bf-nav-debug .bf-navicon{background:#fff5f0;border-color:#f0cdb8;color:#d4663f}'+
+    '.bf-sdbg-head{position:relative}'+
+    '.bf-sdbg-actions{position:absolute;top:22px;right:24px;display:flex;gap:6px;flex-wrap:wrap}'+
+    '.bf-sdbg-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}'+
+    '.bf-sdbg-stat{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:12px 14px}'+
+    '.bf-sdbg-stat-l{font-size:9px;color:var(--ink-3);letter-spacing:.06em;text-transform:uppercase}'+
+    '.bf-sdbg-stat-v{font-size:22px;font-weight:600;margin:6px 0 2px;letter-spacing:-.02em}'+
+    '.bf-sdbg-stat-s{font-size:10px;color:var(--ink-3)}'+
+    '.bf-sdbg-warn{background:#fef3f0;border:1px solid #f0cdb8;border-radius:10px;padding:12px 14px}'+
+    '.bf-sdbg-warnrow{font-size:12px;color:#9c3d28;margin:4px 0;line-height:1.4}'+
+    '.bf-sdbg-kv{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--line-2);font-size:12px}'+
+    '.bf-sdbg-kv:last-child{border-bottom:none}.bf-sdbg-kv span:first-child{color:var(--ink-3)}'+
+    '.bf-sdbg-scroll{overflow:auto;max-height:280px;margin-top:12px;border:1px solid var(--line-2);border-radius:8px}'+
+    '.bf-sdbg-scroll-tall{max-height:520px}'+
+    '.bf-sdbg-tbl{width:100%;border-collapse:collapse;font-size:11px}'+
+    '.bf-sdbg-tbl th{position:sticky;top:0;background:var(--surface-2);text-align:left;padding:8px 10px;font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);border-bottom:1px solid var(--line);white-space:nowrap;z-index:1}'+
+    '.bf-sdbg-tbl td{padding:7px 10px;border-bottom:1px solid var(--line-2);vertical-align:top;color:var(--ink-2)}'+
+    '.bf-sdbg-tbl tr:hover td{background:var(--surface-2)}'+
+    '.bf-sdbg-tbl-wide th,.bf-sdbg-tbl-wide td{font-size:10px}'+
+    '.bf-sdbg-num{text-align:right;font-variant-numeric:tabular-nums}'+
+    '.bf-sdbg-ch{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--ink)}'+
+    '.bf-sdbg-err{color:var(--red);font-size:10px}'+
+    '.bf-sdbg-me{font-size:9px;padding:1px 5px;border-radius:3px;background:#dff0e3;color:#1f7c44;margin-left:4px}'+
+    '.bf-sdbg-meta .bf-card-label{margin-bottom:8px}'+
+    '.bf-sdbg-filters{display:inline-flex;align-items:center;gap:6px;margin-left:auto;flex-wrap:wrap}'+
+    '.bf-sdbg-sel{padding:4px 8px;border:1px solid var(--line);border-radius:6px;font-size:11px;background:var(--surface);font-family:inherit}'+
+    '.bf-sdbg-feed .bf-card-label{display:flex;align-items:center;flex-wrap:wrap;gap:8px;width:100%}'+
+    '.bf-sdbg-msgtbl .bf-sdbg-text{max-width:480px;font-size:11px;line-height:1.45;word-break:break-word}'+
+    '.bf-sdbg-ts{white-space:nowrap;font-size:10px;color:var(--ink-3)}'+
+    '.bf-sdbg-badge{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}'+
+    '.bf-sdbg-b-sent{background:#fde8e6;color:#c44a3e}.bf-sdbg-b-recv{background:#e8ecfd;color:#5b6af9}.bf-sdbg-b-thread{background:var(--surface-2);color:var(--ink-3)}'+
+    '.bf-sdbg-sent td{background:rgba(212,102,63,.03)}.bf-sdbg-recv td{background:rgba(91,106,249,.03)}';
     document.head.appendChild(st);
   }
 
