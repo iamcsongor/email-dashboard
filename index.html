@@ -6237,9 +6237,10 @@ init();
     return current;
   }
 
-  var state={active:'rhythm', slackDbgChannel:'all', slackDbgDir:'all', slackDbgLimit:200};
+  var state={active:'rhythm', slackDbgChannel:'all', slackDbgDir:'all', slackDbgLimit:200, engVariant:1};
   window.bfNav=function(id){state.active=id;renderShell();};
   window.bfEngagementChannel=function(c){state.engChannel=c;renderShell();};
+  window.bfEngVariant=function(v){state.engVariant=v;renderShell();};
   window.bfSlackDbgChannel=function(c){state.slackDbgChannel=c;renderShell();};
   window.bfSlackDbgDir=function(d){state.slackDbgDir=d;renderShell();};
   window.bfSlackDbgLimit=function(n){state.slackDbgLimit=Math.max(50,Math.min(500,parseInt(n)||200));renderShell();};
@@ -6300,10 +6301,11 @@ init();
       +'<nav class="bf-nav">'+navHtml+'</nav>'
      +'</aside>'
      +'<main class="bf-main">'
-      +(state.active==='slackdebug'?''
+      +(state.active==='slackdebug'||state.active==='engagement'?''
         :'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
         +'<div class="bf-tiles">'+renderTiles()+'</div>')
-      +'<div class="bf-signal-head bf-mono"><span class="bf-headicon">'+(ICONS[navItem.id]||'')+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>'
+      +(state.active==='slackdebug'||state.active==='engagement'?''
+        :'<div class="bf-signal-head bf-mono"><span class="bf-headicon">'+(ICONS[navItem.id]||'')+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>')
       +'<div class="bf-signal-pane" id="bf-pane">'+renderSignal(state.active, scores)+'</div>'
      +'</main></div>';
 
@@ -6336,6 +6338,7 @@ init();
 
   function renderSignal(id, scores){
     if(id==='slackdebug') return renderSlackDebugPanel();
+    if(id==='engagement') return renderEngagement(scores);
     var idx=NAV.findIndex(function(n){return n.id===id;});
     var nav=NAV[idx];
     var score=scores[id];
@@ -6353,7 +6356,6 @@ init();
       +'</div>';
     var body='';
     if(id==='rhythm') body=renderRhythm();
-    else if(id==='engagement') body=renderEngagement(scores);
     else if(id==='participation') body=renderParticipation(scores);
     else if(id==='presence') body=renderPresence(scores);
     else if(id==='reaction') body=renderReaction(scores);
@@ -6371,75 +6373,294 @@ init();
     try{ if(typeof window.renderWhenYouWork==='function') window.renderWhenYouWork(); }catch(e){console.error('rhythm',e);}
   }
 
-  function renderEngagement(scores){
+  function engSline(pts){
+    if(pts.length<2) return '';
+    var d='M'+pts[0][0].toFixed(1)+' '+pts[0][1].toFixed(1);
+    for(var i=0;i<pts.length-1;i++){
+      var p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2, t=0.16;
+      var c1x=p1[0]+(p2[0]-p0[0])*t, c1y=p1[1]+(p2[1]-p0[1])*t;
+      var c2x=p2[0]-(p3[0]-p1[0])*t, c2y=p2[1]-(p3[1]-p1[1])*t;
+      d+=' C'+c1x.toFixed(1)+' '+c1y.toFixed(1)+' '+c2x.toFixed(1)+' '+c2y.toFixed(1)+' '+p2[0].toFixed(1)+' '+p2[1].toFixed(1);
+    }
+    return d;
+  }
+  function engSpark(series,w,h,p){
+    w=w||150; h=h||46; p=p||4;
+    if(!series||!series.length) series=[0,0];
+    var mn=Math.min.apply(null,series), mx=Math.max.apply(null,series), rg=(mx-mn)||1, n=series.length;
+    var pts=series.map(function(v,i){return [p+(i/(n-1||1))*(w-2*p), (h-p)-((v-mn)/rg)*(h-2*p)];});
+    var line=engSline(pts);
+    var area=line+' L'+pts[n-1][0].toFixed(1)+' '+(h-p).toFixed(1)+' L'+pts[0][0].toFixed(1)+' '+(h-p).toFixed(1)+' Z';
+    return {line:line, area:area, lx:+pts[n-1][0].toFixed(1), ly:+pts[n-1][1].toFixed(1), w:w, h:h};
+  }
+  function engDeltaVal(cur,prior,higherIsGood,fmtAbs){
+    if(!prior&&!cur) return {delta:'0%', arrow:'·', dColor:'#9b9a96'};
+    var pct=prior?((cur-prior)/prior*100):(cur?100:0);
+    var up=pct>0.5, down=pct<-0.5;
+    var good=higherIsGood?(up||(!up&&!down)):(down||(!up&&!down));
+    if(!up&&!down) return {delta:'0%', arrow:'·', dColor:'#9b9a96'};
+    var d=fmtAbs?fmtAbs(Math.abs(cur-prior)):(Math.abs(Math.round(pct))+'%');
+    return {delta:d, arrow:up?'↑':'↓', dColor:good?'#2f8a5b':'#bf5236'};
+  }
+  function engFmtMins(mins){
+    if(mins==null||!isFinite(mins)) return '—';
+    if(mins<60) return Math.round(mins)+'m';
+    var h=Math.floor(mins/60), m=Math.round(mins%60);
+    return h+'h '+(m?pad(m)+'m':'');
+  }
+  function engDailySeries(now,days,items,getT){
+    var arr=new Array(days).fill(0);
+    items.forEach(function(it){
+      var t=getT(it); if(!t) return;
+      var di=days-1-Math.floor((now-t)/86400000);
+      if(di>=0&&di<days) arr[di]++;
+    });
+    return arr;
+  }
+  function engMedianReplyH(){
     var acts=getSig();
-    var now=Date.now(), ninety=now-90*86400000;
-    var ch=state.engChannel||'all';
-    var inRange=acts.filter(function(s){return tms(s.ts)>=ninety;});
-    var fil=inRange.filter(function(s){if(ch==='all') return s.source==='slack'||s.source==='email'; return s.source===ch;});
-    var n=fil.length;
-    var days=new Array(90).fill(0);
-    fil.forEach(function(s){var t=tms(s.ts); var di=89-Math.floor((now-t)/86400000); if(di>=0&&di<90)days[di]++;});
-    function ma(arr, win){return arr.map(function(_,i){var st=Math.max(0,i-win+1); var sl=arr.slice(st,i+1); return avg(sl);});}
-    var ma7=ma(days,7), ma30=ma(days,30), ma90=ma(days,90);
-    var W=720, H=160, maxV=Math.max(1, Math.max.apply(null, days.concat(ma7,ma30,ma90)));
-    function px(i){return (i/89)*W;}
-    function py(v){return H-(v/maxV)*(H-16)-4;}
-    function path(arr){return 'M'+arr.map(function(v,i){return px(i).toFixed(1)+','+py(v).toFixed(1);}).join(' L');}
-    var belowDots=days.map(function(v,i){return v<ma30[i] ? '<circle cx="'+px(i).toFixed(1)+'" cy="'+py(v).toFixed(1)+'" r="3" fill="#c44a3e"/>' : '';}).join('');
-    var sparkline='<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" style="width:100%;height:'+H+'px" class="bf-eng-svg">'
-      +'<path d="'+path(days)+' L'+W+','+H+' L0,'+H+' Z" fill="rgba(58,160,107,.08)"/>'
-      +'<path d="'+path(ma90)+'" fill="none" stroke="#7b59c9" stroke-width="2" opacity=".7"/>'
-      +'<path d="'+path(ma30)+'" fill="none" stroke="#5b6af9" stroke-width="1.6" opacity=".85"/>'
-      +'<path d="'+path(ma7)+'" fill="none" stroke="#c9931e" stroke-width="1.4" stroke-dasharray="3 3" opacity=".9"/>'
-      +'<path d="'+path(days)+'" fill="none" stroke="#3aa06b" stroke-width="2"/>'
-      +'<g class="bf-eng-below">'+belowDots+'</g>'
-    +'</svg>';
-    var legend='<div class="bf-eng-legend bf-mono">'
-      +'<span class="bf-eng-leg"><span class="bf-eng-line" style="background:#3aa06b"></span>daily</span>'
-      +'<span class="bf-eng-leg"><span class="bf-eng-line bf-eng-dashed" style="background:#c9931e"></span>MA 7d</span>'
-      +'<span class="bf-eng-leg"><span class="bf-eng-line" style="background:#5b6af9"></span>MA 30d</span>'
-      +'<span class="bf-eng-leg"><span class="bf-eng-line" style="background:#7b59c9"></span>MA 90d</span>'
-      +'<span class="bf-eng-leg"><span class="bf-eng-dot" style="background:#c44a3e"></span>below MA 30d <span class="bf-eng-hint">(hover)</span></span>'
-    +'</div>';
-    var chip=function(k,lab){return '<button class="bf-chip'+(ch===k?' bf-active':'')+'" onclick="bfEngagementChannel(\''+k+'\')">'+lab+'</button>';};
-    var emailDays=new Array(90).fill(0), slackDays=new Array(90).fill(0);
-    inRange.forEach(function(s){var di=89-Math.floor((now-tms(s.ts))/86400000); if(di<0||di>=90)return; if(s.source==='email')emailDays[di]++; if(s.source==='slack')slackDays[di]++;});
-    var eMA=ma(emailDays,7), sMA=ma(slackDays,7);
-    var slackRatio=eMA.map(function(_,i){var t=eMA[i]+sMA[i]; return t>0?sMA[i]/t:0.5;});
-    var pmW=720, pmH=120;
-    function pmx(i){return (i/89)*pmW;}
-    var pmSlackPath='M0,'+pmH+' '+slackRatio.map(function(r,i){return 'L'+pmx(i).toFixed(1)+','+(pmH-r*pmH).toFixed(1);}).join(' ')+' L'+pmW+','+pmH+' Z';
-    var pmEmailPath='M0,0 '+slackRatio.map(function(r,i){return 'L'+pmx(i).toFixed(1)+','+(pmH-r*pmH).toFixed(1);}).join(' ')+' L'+pmW+',0 Z';
-    var pmSvg='<svg viewBox="0 0 '+pmW+' '+pmH+'" preserveAspectRatio="none" style="width:100%;height:'+pmH+'px">'
-      +'<path d="'+pmEmailPath+'" fill="rgba(91,106,249,.55)"/>'
-      +'<path d="'+pmSlackPath+'" fill="rgba(212,102,63,.65)"/>'
-    +'</svg>';
-    var last7Email=inRange.filter(function(s){return s.source==='email'&&tms(s.ts)>=now-7*86400000;}).length;
-    var last7Slack=inRange.filter(function(s){return s.source==='slack'&&tms(s.ts)>=now-7*86400000;}).length;
-    var last7Total=last7Email+last7Slack;
-    var emailPct=last7Total?Math.round(last7Email/last7Total*100):0;
-    var slackPct=100-emailPct;
-    return ''
-     +'<div class="bf-sigcard bf-eng-card">'
-      +'<div class="bf-card-label">MESSAGES · LAST 90 DAYS <span class="bf-channel-tabs">'+chip('all','All')+chip('email','Emails')+chip('slack','Slack')+'</span></div>'
-      +'<div class="bf-card-hero"><span class="bf-mono bf-huge">'+n.toLocaleString()+'</span><span class="bf-card-unit">messages</span></div>'
-      +'<div class="bf-eng-chart">'+sparkline+'</div>'
-      +legend
-     +'</div>'
-     +'<div class="bf-sig-grid">'
-      +'<div class="bf-sigcard"><div class="bf-card-label">PLATFORM MIX · LAST 90 DAYS</div>'
-       +'<div class="bf-pmix-hero"><div class="bf-pmix-stat"><span class="bf-pmix-num bf-mono" style="color:#5b6af9">'+emailPct+'%</span><span class="bf-pmix-lab">Email</span></div><div class="bf-pmix-stat"><span class="bf-pmix-num bf-mono" style="color:#d4663f">'+slackPct+'%</span><span class="bf-pmix-lab">Slack</span></div><div class="bf-pmix-sub">share in last 7 days · 7-day smoothed below</div></div>'
-       +'<div class="bf-pmix-chart">'+pmSvg+'</div>'
-      +'</div>'
-      +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">PRO- VS RE-ACTIVE <span class="bf-pl-tag">placeholder</span></div>'
-       +'<div class="bf-card-hero"><span class="bf-mono bf-huge">—</span><span class="bf-card-unit">% proactive</span></div>'
-       +'<div class="bf-prbar"><div class="bf-prbar-fill" style="width:15%"></div></div>'
-       +'<div class="bf-prbar-labels bf-mono"><span>Proactive</span><span>Reactive</span></div>'
-      +'</div>'
-     +'</div>'
-     +'<div class="bf-sigcard bf-placeholder"><div class="bf-card-label">PLATFORM USAGE STATS <span class="bf-pl-tag">placeholder</span></div>'
-      +'<div class="bf-platforms">'+['Outlook','Salesforce','Word','GitHub','Excel','Zoom','Notion','Figma'].map(function(p){return '<div class="bf-pf"><div class="bf-pf-name">'+p+'</div><div class="bf-pf-n"><span class="bf-mono">—</span> <span class="bf-pf-sub">interactions</span></div></div>';}).join('')+'</div></div>';
+    var recE=acts.filter(function(s){return s.source==='email'&&s.type==='received';}).map(function(s){return tms(s.ts);}).sort(function(a,b){return a-b;});
+    var sentE=acts.filter(function(s){return s.source==='email'&&s.type==='sent';}).map(function(s){return tms(s.ts);}).sort(function(a,b){return a-b;});
+    var gaps=[];
+    if(recE.length&&sentE.length){
+      var j=0;
+      recE.forEach(function(rt){while(j<sentE.length-1&&sentE[j]<rt) j++; var st=sentE[j]; if(st&&st>rt&&st-rt<86400000) gaps.push((st-rt)/3600000);});
+    }
+    gaps.sort(function(a,b){return a-b;});
+    return gaps.length?gaps[Math.floor(gaps.length/2)]:null;
+  }
+  function engActiveStreak(acts,now,days){
+    var byDay={};
+    acts.forEach(function(s){
+      var t=tms(s.ts); if(t<now-days*86400000) return;
+      var d=new Date(t), k=d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+      byDay[k]=(byDay[k]||0)+1;
+    });
+    function dayKey(offset){var d=new Date(now-offset*86400000);return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());}
+    var streak=0;
+    for(var i=0;i<days;i++){ if(byDay[dayKey(i)]) streak++; else break; }
+    var best=0, run=0;
+    for(var j=days-1;j>=0;j--){
+      if(byDay[dayKey(j)]){ run++; best=Math.max(best,run); } else run=0;
+    }
+    return {current:streak, best:best, byDay:byDay, days:days};
+  }
+  function computeEngagementLive(winDays){
+    winDays=winDays||28;
+    var now=Date.now(), w=winDays*86400000, wStart=now-w, pStart=now-2*w;
+    var myId=(typeof SLACK_DATA!=='undefined'&&SLACK_DATA)?SLACK_DATA.myUserId:null;
+    var recvAll=(typeof ALL_RECEIVED!=='undefined'?ALL_RECEIVED:[]);
+    var sentAll=(typeof ALL_SENT!=='undefined'?ALL_SENT:[]);
+    var slackAll=(SLACK_DATA&&SLACK_DATA.messages)?SLACK_DATA.messages:[];
+    var calAll=getCal();
+    function inWin(arr,getT,a,b){return arr.filter(function(x){var t=getT(x);return t>=a&&t<b;});}
+    var recv=inWin(recvAll,function(m){return m.receivedDateTime?tms(m.receivedDateTime):0;},wStart,now);
+    var sent=inWin(sentAll,function(m){return m.sentDateTime?tms(m.sentDateTime):0;},wStart,now);
+    var recvP=inWin(recvAll,function(m){return m.receivedDateTime?tms(m.receivedDateTime):0;},pStart,wStart);
+    var sentP=inWin(sentAll,function(m){return m.sentDateTime?tms(m.sentDateTime):0;},pStart,wStart);
+    var slackW=inWin(slackAll,function(m){return m.ts*1000;},wStart,now);
+    var slackP=inWin(slackAll,function(m){return m.ts*1000;},pStart,wStart);
+    var calW=inWin(calAll,function(m){return tms(m.start);},wStart,now);
+    var calP=inWin(calAll,function(m){return tms(m.start);},pStart,wStart);
+    var emailTotal=recv.length+sent.length, emailPrior=recvP.length+sentP.length;
+    var emailDaily=engDailySeries(now,winDays,recv.concat(sent),function(m){return m.receivedDateTime?tms(m.receivedDateTime):m.sentDateTime?tms(m.sentDateTime):0;});
+    var slackDaily=engDailySeries(now,winDays,slackW,function(m){return m.ts*1000;});
+    var calDaily=engDailySeries(now,winDays,calW,function(m){return tms(m.start);});
+    var totalDaily=emailDaily.map(function(v,i){return v+slackDaily[i]+calDaily[i];});
+    var chIds={}; slackW.forEach(function(m){chIds[m.channelId]=1;});
+    var chCount=Object.keys(chIds).length;
+    var chIdsP={}; slackP.forEach(function(m){chIdsP[m.channelId]=1;});
+    var threads={};
+    slackW.forEach(function(m){
+      var key=m.isReply&&m.threadTs?(m.channelId+':'+m.threadTs):(m.replyCount>0?(m.channelId+':'+m.ts):null);
+      if(key) threads[key]=(threads[key]||0)+1;
+    });
+    var tDepths=Object.values(threads);
+    var avgThread=tDepths.length?avg(tDepths):0;
+    var tDepthsP={}; slackP.forEach(function(m){
+      var key=m.isReply&&m.threadTs?(m.channelId+':'+m.threadTs):(m.replyCount>0?(m.channelId+':'+m.ts):null);
+      if(key) tDepthsP[key]=(tDepthsP[key]||0)+1;
+    });
+    var avgThreadP=Object.keys(tDepthsP).length?avg(Object.values(tDepthsP)):0;
+    var sentSlack=slackW.filter(function(m){return m.userId===myId;});
+    var sentEmail=sent;
+    var allSent=sentSlack.length+sentEmail.length;
+    var afterHrs=0;
+    sentSlack.forEach(function(m){var h=new Date(m.ts*1000).getHours(); if(h>=18||h<8) afterHrs++;});
+    sentEmail.forEach(function(m){var h=new Date(m.sentDateTime).getHours(); if(h>=18||h<8) afterHrs++;});
+    var afterPct=allSent?Math.round(afterHrs/allSent*100):0;
+    var sentSlackP=slackP.filter(function(m){return m.userId===myId;});
+    var sentEmailP=sentP;
+    var allSentP=sentSlackP.length+sentEmailP.length;
+    var afterHrsP=0;
+    sentSlackP.forEach(function(m){var h=new Date(m.ts*1000).getHours(); if(h>=18||h<8) afterHrsP++;});
+    sentEmailP.forEach(function(m){var h=new Date(m.sentDateTime).getHours(); if(h>=18||h<8) afterHrsP++;});
+    var afterPctP=allSentP?Math.round(afterHrsP/allSentP*100):0;
+    var meetMins=calW.reduce(function(a,e){return a+(e.durationMin||0);},0);
+    var talkPct=Math.round(meetMins/(winDays*8*60)*100);
+    var meetMinsP=calP.reduce(function(a,e){return a+(e.durationMin||0);},0);
+    var talkPctP=Math.round(meetMinsP/(winDays*8*60)*100);
+    var orgPct=calW.length?Math.round(calW.filter(function(e){return e.isOrganizer;}).length/calW.length*100):0;
+    var orgPctP=calP.length?Math.round(calP.filter(function(e){return e.isOrganizer;}).length/calP.length*100):0;
+    var medH=engMedianReplyH();
+    var totalAll=emailTotal+slackW.length+calW.length;
+    var totalPrior=emailPrior+slackP.length+calP.length;
+    var sentTotal=sent.length+sentSlack.length;
+    var recvTotal=recv.length+slackW.filter(function(m){return m.userId!==myId;}).length;
+    var sentPrior=sentP.length+sentSlackP.length;
+    var recvPrior=recvP.length+slackP.filter(function(m){return m.userId!==myId;}).length;
+    var streak=engActiveStreak(getSig(),now,winDays);
+    var streakCells=[];
+    var counts=Object.keys(streak.byDay).map(function(k){return streak.byDay[k];}).sort(function(a,b){return a-b;});
+    var ramp=['#efefed','#d4d3d0','#9b9a96','#3a3a3c'];
+    for(var si=winDays-1;si>=0;si--){
+      var sd=new Date(now-si*86400000);
+      var sk=sd.getFullYear()+'-'+pad(sd.getMonth()+1)+'-'+pad(sd.getDate());
+      var cnt=streak.byDay[sk]||0;
+      var tier=0;
+      if(cnt>0){ tier=1; if(cnt>=counts[Math.floor(counts.length*0.33)]||0) tier=2; if(cnt>=counts[Math.floor(counts.length*0.66)]||0) tier=3; }
+      streakCells.push({bg:ramp[tier], cnt:cnt});
+    }
+    return {
+      winDays:winDays, emailTotal:emailTotal, emailPrior:emailPrior, emailDaily:emailDaily,
+      sentCount:sent.length, recvCount:recv.length, medReply:medH,
+      slackTotal:slackW.length, slackPrior:slackP.length, slackDaily:slackDaily,
+      chCount:chCount, chCountPrior:Object.keys(chIdsP).length,
+      avgThread:avgThread, avgThreadPrior:avgThreadP,
+      calTotal:calW.length, calPrior:calP.length, calDaily:calDaily,
+      perWeek:(calW.length/(winDays/7)).toFixed(1), talkPct:talkPct, talkPctPrior:talkPctP, orgPct:orgPct, orgPctPrior:orgPctP,
+      afterPct:afterPct, afterPctPrior:afterPctP,
+      totalAll:totalAll, totalPrior:totalPrior, totalDaily:totalDaily,
+      sentTotal:sentTotal, recvTotal:recvTotal, sentPrior:sentPrior, recvPrior:recvPrior,
+      streak:streak, streakCells:streakCells
+    };
+  }
+
+  function renderEngagement(scores){
+    var C={email:'#5e7798', slack:'#80739f', meeting:'#a3855c', all:'#1d1d1f'};
+    var v=state.engVariant||1;
+    var D=computeEngagementLive(28);
+    var medStr=engFmtMins(D.medReply!=null?D.medReply*60:null);
+
+    function tabBtn(n,label){return '<button class="bf-engv-tab'+(v===n?' bf-engv-tab-on':'')+'" onclick="bfEngVariant('+n+')">'+label+'</button>';}
+    var header='<div class="bf-engv-head"><div class="bf-engv-head-l bf-mono"><span class="bf-engv-dot"></span>ENGAGEMENT · EMAIL · MEETINGS · SLACK · LAST 28 DAYS</div>'
+      +'<div class="bf-engv-tabs">'+tabBtn(1,'Channel')+tabBtn(2,'Score board')+tabBtn(3,'Dense')+'</div></div>';
+
+    function chCard(c){
+      return '<div class="bf-engv1-ch"><div class="bf-engv1-ch-top"><div class="bf-engv1-ch-label"><span class="bf-engv1-dot" style="background:'+c.color+'"></span><span>'+c.name+'</span></div>'
+        +'<div class="bf-engv1-delta" style="color:'+c.dColor+'">'+c.arrow+' '+c.delta+'</div></div>'
+        +'<div class="bf-engv1-hero"><span class="bf-mono tnum">'+c.value+'</span><span class="bf-engv1-unit">'+c.unit+'</span></div>'
+        +'<svg viewBox="0 0 '+c.sp.w+' '+c.sp.h+'" preserveAspectRatio="none" class="bf-engv1-sp"><path d="'+c.sp.area+'" fill="'+c.color+'" fill-opacity="0.06"/><path d="'+c.sp.line+'" fill="none" stroke="'+c.color+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+c.sp.lx+'" cy="'+c.sp.ly+'" r="2.6" fill="#fff" stroke="'+c.color+'" stroke-width="1.6"/></svg>'
+        +'<div class="bf-engv1-sub"><div><div class="bf-engv1-sk bf-mono">'+c.s1.k+'</div><div class="bf-engv1-sv bf-mono tnum">'+c.s1.v+'</div></div>'
+        +'<div><div class="bf-engv1-sk bf-mono">'+c.s2.k+'</div><div class="bf-engv1-sv bf-mono tnum">'+c.s2.v+'</div></div></div></div>';
+    }
+    function metCard(m,compact){
+      if(compact) return '<div class="bf-engv3-met"><div><div class="bf-engv3-met-l"><span class="bf-engv1-dot" style="background:'+m.color+'"></span><span>'+m.label+'</span></div>'
+        +'<div class="bf-engv3-met-v"><span class="bf-mono tnum">'+m.value+'</span><span class="bf-engv3-met-d" style="color:'+m.dColor+'">'+m.arrow+' '+m.delta+'</span></div></div>'
+        +'<svg viewBox="0 0 '+m.sp.w+' '+m.sp.h+'" preserveAspectRatio="none" class="bf-engv3-sp"><path d="'+m.sp.line+'" fill="none" stroke="'+m.color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></div>';
+      return '<div class="bf-engv1-met"><div class="bf-engv1-met-top"><div class="bf-engv1-met-l"><span class="bf-engv1-dot sm" style="background:'+m.color+'"></span><span>'+m.label+'</span></div>'
+        +'<div class="bf-engv1-delta sm" style="color:'+m.dColor+'">'+m.arrow+' '+m.delta+'</div></div>'
+        +'<div class="bf-engv1-met-body"><div><div class="bf-engv1-met-v bf-mono tnum">'+m.value+'</div><div class="bf-engv1-met-sub">'+m.sub+'</div></div>'
+        +'<svg viewBox="0 0 '+m.sp.w+' '+m.sp.h+'" preserveAspectRatio="none" class="bf-engv1-met-sp"><path d="'+m.sp.line+'" fill="none" stroke="'+m.color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/><circle cx="'+m.sp.lx+'" cy="'+m.sp.ly+'" r="2.2" fill="'+m.color+'"/></svg></div></div>';
+    }
+
+    var eDel=engDeltaVal(D.emailTotal,D.emailPrior,true);
+    var mDel=engDeltaVal(D.calTotal,D.calPrior,true);
+    var sDel=engDeltaVal(D.slackTotal,D.slackPrior,true);
+    var channels=[
+      {name:'Email', color:C.email, value:D.emailTotal.toLocaleString(), unit:'messages', arrow:eDel.arrow, delta:eDel.delta, dColor:eDel.dColor,
+        s1:{k:'SENT',v:D.sentCount.toLocaleString()}, s2:{k:'AVG REPLY',v:medStr},
+        sp:engSpark(D.emailDaily,150,46,4), big:engSpark(D.emailDaily,600,170,10)},
+      {name:'Meetings', color:C.meeting, value:D.calTotal.toLocaleString(), unit:'sessions', arrow:mDel.arrow, delta:mDel.delta, dColor:mDel.dColor,
+        s1:{k:'PER WEEK',v:D.perWeek}, s2:{k:'TALK-TIME',v:D.talkPct+'%'},
+        sp:engSpark(D.calDaily,150,46,4), big:engSpark(D.calDaily,600,170,10)},
+      {name:'Slack', color:C.slack, value:D.slackTotal.toLocaleString(), unit:'messages', arrow:sDel.arrow, delta:sDel.delta, dColor:sDel.dColor,
+        s1:{k:'CHANNELS',v:String(D.chCount)}, s2:{k:'THREAD DEPTH',v:D.avgThread.toFixed(1)},
+        sp:engSpark(D.slackDaily,150,46,4), big:engSpark(D.slackDaily,600,170,10)}
+    ];
+
+    var mDefs=[
+      {label:'Reply latency', sub:'median first response', value:medStr, color:C.email, pct:Math.min(100,Math.round((D.medReply||2)*10)), good:true, higher:false,
+        cur:D.medReply||0, prior:D.medReply||0, fmt:function(x){return Math.round(x*60)+'m';}, series:D.emailDaily},
+      {label:'After-hours ratio', sub:'messages sent 6pm–8am', value:D.afterPct+'%', color:C.meeting, pct:D.afterPct, good:false, higher:false,
+        cur:D.afterPct, prior:D.afterPctPrior, fmt:function(x){return Math.round(x)+'pts';}, series:engDailySeries(Date.now(),28,getSig().filter(function(s){return s.type==='sent';}),function(s){return tms(s.ts);})},
+      {label:'Channels reached', sub:'distinct Slack channels', value:String(D.chCount), color:C.slack, pct:Math.min(100,D.chCount*2), good:true, higher:true,
+        cur:D.chCount, prior:D.chCountPrior, fmt:function(x){return String(Math.round(x));}, series:D.slackDaily},
+      {label:'Thread depth', sub:'avg replies per thread', value:D.avgThread.toFixed(1), color:C.slack, pct:Math.min(100,D.avgThread*15), good:true, higher:true,
+        cur:D.avgThread, prior:D.avgThreadPrior, fmt:function(x){return x.toFixed(1);}, series:D.slackDaily},
+      {label:'Meeting talk-time', sub:'calendar fill vs 8h day', value:D.talkPct+'%', color:C.meeting, pct:D.talkPct, good:false, higher:false,
+        cur:D.talkPct, prior:D.talkPctPrior, fmt:function(x){return Math.round(x)+'pts';}, series:D.calDaily},
+      {label:'Active streak', sub:'consecutive active days', value:D.streak.current+' d', color:C.all, pct:Math.min(100,D.streak.current*3), good:true, higher:true,
+        cur:D.streak.current, prior:Math.max(0,D.streak.current-1), fmt:function(x){return 'best '+D.streak.best;}, series:D.totalDaily}
+    ];
+    var metrics=mDefs.map(function(d){
+      var del=engDeltaVal(d.cur,d.prior,d.good,d.fmt||null);
+      if(d.label==='Active streak') del={delta:'best '+D.streak.best, arrow:'↑', dColor:'#2f8a5b'};
+      if(d.label==='Reply latency'&&D.medReply==null) del={delta:'—', arrow:'·', dColor:'#9b9a96'};
+      return {label:d.label, sub:d.sub, value:d.value, pct:d.pct, color:d.color, arrow:del.arrow, delta:del.delta, dColor:del.dColor, sp:engSpark(d.series,120,36,4)};
+    });
+
+    var body='';
+    if(v===1){
+      body='<div class="bf-engv1-row">'+channels.map(chCard).join('')+'</div>'
+        +'<div class="bf-engv1-row">'+metrics.map(function(m){return metCard(m,false);}).join('')+'</div>';
+    } else if(v===2){
+      var score=scores.engagement||0;
+      var oSp=engSpark(D.totalDaily,620,110,10);
+      var mixTotal=Math.max(1,D.slackTotal+D.emailTotal+D.calTotal);
+      var mix=[
+        {label:'Slack', pct:Math.round(D.slackTotal/mixTotal*100), count:D.slackTotal.toLocaleString()+' msgs', color:C.slack},
+        {label:'Email', pct:Math.round(D.emailTotal/mixTotal*100), count:D.emailTotal.toLocaleString()+' msgs', color:C.email},
+        {label:'Meetings', pct:Math.round(D.calTotal/mixTotal*100), count:D.calTotal.toLocaleString()+' sessions', color:C.meeting}
+      ];
+      var dChip=function(k,dv){
+        var positive=dv>=0, ab=Math.abs(Math.round(dv));
+        var col=ab<1?'#86868b':(positive?'#6fd09a':'#e6a594');
+        var sign=positive?'+':'−';
+        return '<div class="bf-engv2-dchip"><div class="bf-mono">'+k+'</div><div class="bf-mono tnum" style="color:'+col+'">'+sign+ab+'</div></div>';
+      };
+      body='<div class="bf-engv2-top"><div class="bf-engv2-dark"><div class="bf-engv2-dark-hd"><div class="bf-mono">ENGAGEMENT VOLUME · SUB-SCORE</div>'
+        +'<div class="bf-engv2-dchips">'+dChip('7D',scores._d7.engagement||0)+dChip('30D',scores._d30.engagement||0)+dChip('90D',scores._d90.engagement||0)+'</div></div>'
+        +'<div class="bf-engv2-big"><span class="bf-mono tnum">'+score+'</span><span>/ 100</span></div>'
+        +'<div class="bf-engv2-sub">'+D.totalAll.toLocaleString()+' interactions across email, meetings and Slack this review window.</div>'
+        +'<svg viewBox="0 0 '+oSp.w+' '+oSp.h+'" preserveAspectRatio="none" class="bf-engv2-chart"><path d="'+oSp.area+'" fill="#ffffff" fill-opacity="0.06"/><path d="'+oSp.line+'" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.85"/><circle cx="'+oSp.lx+'" cy="'+oSp.ly+'" r="3" fill="#fff"/></svg></div>'
+        +'<div class="bf-engv2-mix"><div class="bf-mono bf-engv2-mix-l">CHANNEL MIX · LAST 28 DAYS</div>'
+        +'<div class="bf-engv2-mix-bar">'+mix.map(function(x){return '<div style="width:'+x.pct+'%;background:'+x.color+'"></div>';}).join('')+'</div>'
+        +mix.map(function(x){return '<div class="bf-engv2-mix-row"><span class="bf-engv1-dot" style="background:'+x.color+'"></span><span class="bf-engv2-mix-n">'+x.label+'</span><span class="bf-engv2-mix-c">'+x.count+'</span><span class="bf-mono tnum bf-engv2-mix-p">'+x.pct+'%</span></div>';}).join('')
+        +'</div></div>'
+        +'<div class="bf-engv2-list">'+metrics.map(function(m){
+          return '<div class="bf-engv2-row"><span class="bf-engv1-dot sm" style="background:'+m.color+'"></span>'
+            +'<div class="bf-engv2-row-l"><div>'+m.label+'</div><div>'+m.sub+'</div></div>'
+            +'<div class="bf-engv2-bar"><div style="width:'+m.pct+'%;background:'+m.color+'"></div></div>'
+            +'<svg viewBox="0 0 '+m.sp.w+' '+m.sp.h+'" preserveAspectRatio="none" class="bf-engv2-row-sp"><path d="'+m.sp.line+'" fill="none" stroke="'+m.color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg>'
+            +'<div class="bf-mono tnum bf-engv2-row-v">'+m.value+'</div>'
+            +'<div class="bf-engv2-row-d" style="color:'+m.dColor+'">'+m.arrow+' '+m.delta+'</div></div>';
+        }).join('')+'</div>';
+    } else {
+      var kpis=[
+        {label:'MESSAGES', value:D.totalAll.toLocaleString(), color:C.all, arrow:engDeltaVal(D.totalAll,D.totalPrior,true).arrow, delta:engDeltaVal(D.totalAll,D.totalPrior,true).delta, dColor:engDeltaVal(D.totalAll,D.totalPrior,true).dColor, sp:engSpark(D.totalDaily,90,30,4)},
+        {label:'SENT', value:D.sentTotal.toLocaleString(), color:C.email, arrow:engDeltaVal(D.sentTotal,D.sentPrior,true).arrow, delta:engDeltaVal(D.sentTotal,D.sentPrior,true).delta, dColor:engDeltaVal(D.sentTotal,D.sentPrior,true).dColor, sp:engSpark(D.emailDaily,90,30,4)},
+        {label:'RECEIVED', value:D.recvTotal.toLocaleString(), color:C.slack, arrow:engDeltaVal(D.recvTotal,D.recvPrior,true).arrow, delta:engDeltaVal(D.recvTotal,D.recvPrior,true).delta, dColor:engDeltaVal(D.recvTotal,D.recvPrior,true).dColor, sp:engSpark(D.slackDaily,90,30,4)},
+        {label:'REPLY TIME', value:medStr, color:C.meeting, arrow:'↓', delta:D.medReply?'live':'—', dColor:'#2f8a5b', sp:engSpark(D.emailDaily,90,30,4)}
+      ];
+      var bigChart=channels.map(function(c){
+        return '<path d="'+c.big.area+'" fill="'+c.color+'" fill-opacity="0.05"/><path d="'+c.big.line+'" fill="none" stroke="'+c.color+'" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>';
+      }).join('');
+      body='<div class="bf-engv3-kpis">'+kpis.map(function(k){
+        return '<div class="bf-engv3-kpi"><div class="bf-engv3-kpi-top"><div class="bf-mono">'+k.label+'</div><div style="color:'+k.dColor+'">'+k.arrow+' '+k.delta+'</div></div>'
+          +'<div class="bf-engv3-kpi-body"><div class="bf-mono tnum">'+k.value+'</div>'
+          +'<svg viewBox="0 0 '+k.sp.w+' '+k.sp.h+'" preserveAspectRatio="none" class="bf-engv3-kpi-sp"><path d="'+k.sp.line+'" fill="none" stroke="'+k.color+'" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/></svg></div></div>';
+      }).join('')+'</div>'
+        +'<div class="bf-engv3-mid"><div class="bf-engv3-chart-card"><div class="bf-engv3-chart-hd"><div class="bf-mono">VOLUME BY CHANNEL · 28 DAYS</div>'
+        +'<div class="bf-engv3-leg">'+channels.map(function(c){return '<span><span class="bf-engv1-dot sm" style="background:'+c.color+'"></span>'+c.name+'</span>';}).join('')+'</div></div>'
+        +'<svg viewBox="0 0 600 170" preserveAspectRatio="none" class="bf-engv3-big">'+bigChart+'</svg></div>'
+        +'<div class="bf-engv3-streak"><div class="bf-engv3-streak-hd"><div class="bf-mono">ACTIVITY STREAK</div><div>consecutive active days</div></div>'
+        +'<div class="bf-engv3-streak-hero"><span class="bf-mono tnum">'+D.streak.current+'</span><span>days · best '+D.streak.best+'</span></div>'
+        +'<div class="bf-engv3-grid">'+D.streakCells.map(function(d){return '<div class="bf-engv3-cell" style="background:'+d.bg+'" title="'+d.cnt+' signals"></div>';}).join('')+'</div>'
+        +'<div class="bf-engv3-ramp bf-mono"><span>less</span>'+['#efefed','#d4d3d0','#9b9a96','#3a3a3c'].map(function(c){return '<span style="background:'+c+'"></span>';}).join('')+'<span>more</span></div></div></div>'
+        +'<div class="bf-engv3-mets">'+metrics.map(function(m){return metCard(m,true);}).join('')+'</div>';
+    }
+    return '<div class="bf-engv">'+header+body+'</div>';
   }
 
   function renderParticipation(scores){
@@ -6777,7 +6998,80 @@ init();
     '.bf-sdbg-ts{white-space:nowrap;font-size:10px;color:var(--ink-3)}'+
     '.bf-sdbg-badge{font-size:9px;padding:2px 6px;border-radius:4px;font-weight:600;text-transform:uppercase;letter-spacing:.04em}'+
     '.bf-sdbg-b-sent{background:#fde8e6;color:#c44a3e}.bf-sdbg-b-recv{background:#e8ecfd;color:#5b6af9}.bf-sdbg-b-thread{background:var(--surface-2);color:var(--ink-3)}'+
-    '.bf-sdbg-sent td{background:rgba(212,102,63,.03)}.bf-sdbg-recv td{background:rgba(91,106,249,.03)}';
+    '.bf-sdbg-sent td{background:rgba(212,102,63,.03)}.bf-sdbg-recv td{background:rgba(91,106,249,.03)}'+
+    '.tnum{font-variant-numeric:tabular-nums}'+
+    '.bf-engv{display:flex;flex-direction:column;gap:18px}'+
+    '.bf-engv-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:4px}'+
+    '.bf-engv-head-l{display:flex;align-items:center;gap:9px;font-size:11px;letter-spacing:.1em;color:var(--ink-3)}'+
+    '.bf-engv-dot{width:6px;height:6px;border-radius:50%;background:var(--ink);flex:none}'+
+    '.bf-engv-tabs{display:flex;gap:2px;padding:3px;background:rgba(0,0,0,.04);border-radius:11px}'+
+    '.bf-engv-tab{border:none;cursor:pointer;font-size:12.5px;font-weight:500;padding:7px 15px;border-radius:9px;font-family:inherit;background:transparent;color:#86868b;transition:all .15s}'+
+    '.bf-engv-tab-on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}'+
+    '.bf-engv1-row{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}'+
+    '.bf-engv1-ch,.bf-engv1-met{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:20px;padding:24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}'+
+    '.bf-engv1-met{border-radius:18px;padding:22px}'+
+    '.bf-engv1-ch-top,.bf-engv1-met-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}'+
+    '.bf-engv1-met-top{margin-bottom:18px}'+
+    '.bf-engv1-ch-label,.bf-engv1-met-l{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500;color:var(--ink)}'+
+    '.bf-engv1-met-l{font-size:12.5px;color:#48484a;gap:8px}'+
+    '.bf-engv1-dot{width:8px;height:8px;border-radius:50%;flex:none}.bf-engv1-dot.sm{width:6px;height:6px}'+
+    '.bf-engv1-delta{font-size:12px;font-weight:500}.bf-engv1-delta.sm{font-size:11.5px}'+
+    '.bf-engv1-hero{display:flex;align-items:baseline;gap:8px}'+
+    '.bf-engv1-hero .bf-mono{font-size:40px;font-weight:600;letter-spacing:-.035em;line-height:.9;color:var(--ink)}'+
+    '.bf-engv1-unit{font-size:13px;color:#a1a1a6}'+
+    '.bf-engv1-sp{width:100%;height:48px;margin:18px 0 16px;display:block}'+
+    '.bf-engv1-sub{display:flex;gap:8px;border-top:1px solid rgba(0,0,0,.05);padding-top:16px}'+
+    '.bf-engv1-sub>div{flex:1}.bf-engv1-sk{font-size:10px;color:#bdbab2;letter-spacing:.06em}'+
+    '.bf-engv1-sv{font-size:15px;font-weight:500;margin-top:4px;color:var(--ink)}'+
+    '.bf-engv1-met-body{display:flex;align-items:flex-end;justify-content:space-between;gap:12px}'+
+    '.bf-engv1-met-v{font-size:30px;font-weight:600;letter-spacing:-.03em;line-height:1;color:var(--ink)}'+
+    '.bf-engv1-met-sub{font-size:11.5px;color:#a1a1a6;margin-top:8px}'+
+    '.bf-engv1-met-sp{width:88px;height:34px;flex:none}'+
+    '.bf-engv2-top{display:grid;grid-template-columns:1.35fr 1fr;gap:18px}'+
+    '.bf-engv2-dark{background:#0b0b0c;color:#fff;border-radius:22px;padding:28px}'+
+    '.bf-engv2-dark-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;gap:12px;flex-wrap:wrap}'+
+    '.bf-engv2-dark-hd .bf-mono{font-size:10.5px;letter-spacing:.1em;color:#86868b}'+
+    '.bf-engv2-dchips{display:flex;gap:8px}'+
+    '.bf-engv2-dchip{text-align:center;padding:6px 12px;border-radius:9px;border:1px solid rgba(255,255,255,.1)}'+
+    '.bf-engv2-dchip .bf-mono:first-child{font-size:9.5px;color:#86868b}.bf-engv2-dchip .bf-mono:last-child{font-size:13px;font-weight:500;margin-top:3px}'+
+    '.bf-engv2-big{display:flex;align-items:baseline;gap:12px}.bf-engv2-big .bf-mono{font-size:84px;font-weight:600;letter-spacing:-.05em;line-height:.82}'+
+    '.bf-engv2-big span:last-child{font-size:16px;color:#86868b}'+
+    '.bf-engv2-sub{font-size:14px;color:#a1a1a6;margin-top:14px;max-width:340px;line-height:1.4}'+
+    '.bf-engv2-chart{width:100%;height:110px;margin-top:20px;display:block}'+
+    '.bf-engv2-mix{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:22px;padding:28px;display:flex;flex-direction:column;box-shadow:0 1px 2px rgba(0,0,0,.03)}'+
+    '.bf-engv2-mix-l{font-size:10.5px;letter-spacing:.1em;color:#a1a1a6;margin-bottom:20px}'+
+    '.bf-engv2-mix-bar{display:flex;gap:3px;height:10px;margin-bottom:26px;border-radius:3px;overflow:hidden}'+
+    '.bf-engv2-mix-bar>div{height:100%;border-radius:3px}'+
+    '.bf-engv2-mix-row{display:flex;align-items:center;gap:12px;margin-bottom:18px;font-size:14px}.bf-engv2-mix-row:last-child{margin-bottom:0}'+
+    '.bf-engv2-mix-n{font-weight:500;flex:1}.bf-engv2-mix-c{font-size:12.5px;color:#a1a1a6}.bf-engv2-mix-p{font-size:15px;font-weight:600;width:46px;text-align:right}'+
+    '.bf-engv2-list{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:22px;padding:6px 10px;box-shadow:0 1px 2px rgba(0,0,0,.03)}'+
+    '.bf-engv2-row{display:flex;align-items:center;gap:18px;padding:18px 16px;border-bottom:1px solid rgba(0,0,0,.045)}.bf-engv2-row:last-child{border-bottom:none}'+
+    '.bf-engv2-row-l{width:210px;flex:none}.bf-engv2-row-l div:first-child{font-size:14.5px;font-weight:500}.bf-engv2-row-l div:last-child{font-size:11.5px;color:#a1a1a6;margin-top:2px}'+
+    '.bf-engv2-bar{flex:1;min-width:0;height:5px;border-radius:3px;background:rgba(0,0,0,.05);overflow:hidden}.bf-engv2-bar>div{height:100%;border-radius:3px}'+
+    '.bf-engv2-row-sp{width:84px;height:28px;flex:none}.bf-engv2-row-v{width:92px;flex:none;text-align:right;font-size:20px;font-weight:600;letter-spacing:-.02em}'+
+    '.bf-engv2-row-d{width:70px;flex:none;text-align:right;font-size:12px;font-weight:500}'+
+    '.bf-engv3-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}'+
+    '.bf-engv3-kpi{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:18px;box-shadow:0 1px 2px rgba(0,0,0,.03)}'+
+    '.bf-engv3-kpi-top{display:flex;align-items:center;justify-content:space-between;font-size:10px;letter-spacing:.08em;color:#bdbab2}.bf-engv3-kpi-top div:last-child{font-size:11px;font-weight:500;letter-spacing:0}'+
+    '.bf-engv3-kpi-body{display:flex;align-items:flex-end;justify-content:space-between;gap:8px;margin-top:12px}'+
+    '.bf-engv3-kpi-body .bf-mono{font-size:26px;font-weight:600;letter-spacing:-.025em;line-height:1;color:var(--ink)}'+
+    '.bf-engv3-kpi-sp{width:64px;height:24px;flex:none}'+
+    '.bf-engv3-mid{display:grid;grid-template-columns:1.5fr 1fr;gap:18px}'+
+    '.bf-engv3-chart-card,.bf-engv3-streak{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:20px;padding:24px;box-shadow:0 1px 2px rgba(0,0,0,.03)}'+
+    '.bf-engv3-chart-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:12px;flex-wrap:wrap}'+
+    '.bf-engv3-chart-hd .bf-mono{font-size:10.5px;letter-spacing:.09em;color:#a1a1a6}'+
+    '.bf-engv3-leg{display:flex;gap:16px;font-size:11.5px;color:#86868b}.bf-engv3-leg span{display:flex;align-items:center;gap:6px}'+
+    '.bf-engv3-big{width:100%;height:200px;display:block}'+
+    '.bf-engv3-streak-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;font-size:11.5px;color:#a1a1a6}.bf-engv3-streak-hd .bf-mono{font-size:10.5px;letter-spacing:.09em;color:#a1a1a6}'+
+    '.bf-engv3-streak-hero{display:flex;align-items:baseline;gap:8px;margin:14px 0 20px}.bf-engv3-streak-hero .bf-mono{font-size:40px;font-weight:600;letter-spacing:-.03em;line-height:.9}.bf-engv3-streak-hero span:last-child{font-size:13px;color:#a1a1a6}'+
+    '.bf-engv3-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:7px}'+
+    '.bf-engv3-cell{aspect-ratio:1;border-radius:5px}'+
+    '.bf-engv3-ramp{display:flex;align-items:center;gap:7px;margin-top:18px;font-size:10.5px;color:#bdbab2}.bf-engv3-ramp span:not(:first-child):not(:last-child){width:11px;height:11px;border-radius:3px;display:inline-block}'+
+    '.bf-engv3-mets{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}'+
+    '.bf-engv3-met{background:#fff;border:1px solid rgba(0,0,0,.06);border-radius:16px;padding:18px;display:flex;align-items:center;gap:14px;box-shadow:0 1px 2px rgba(0,0,0,.03)}'+
+    '.bf-engv3-met-l{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:500;color:#48484a}'+
+    '.bf-engv3-met-v{display:flex;align-items:baseline;gap:8px;margin-top:8px}.bf-engv3-met-v .bf-mono{font-size:24px;font-weight:600;letter-spacing:-.025em;line-height:1;color:var(--ink)}'+
+    '.bf-engv3-met-d{font-size:11px;font-weight:500}.bf-engv3-sp{width:68px;height:32px;flex:none}';
     document.head.appendChild(st);
   }
 

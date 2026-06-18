@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@300;400;500;600&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body { background: #f1f0ed; font-family: 'Geist', ui-sans-serif, system-ui, sans-serif; -webkit-font-smoothing: antialiased; color: #1d1d1f; }
+  .tnum { font-variant-numeric: tabular-nums; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; background:#f1f0ed; color:#1d1d1f; font-family:'Geist',ui-sans-serif,system-ui,sans-serif;">
+
+  <!-- HEADER -->
+  <header style="display:flex; align-items:center; justify-content:space-between; padding:22px 30px; background:#f1f0ed;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <div style="width:44px; height:44px; border-radius:13px; background:#16150f; display:flex; align-items:center; justify-content:center; font-size:22px;">🐱</div>
+      <div style="display:flex; flex-direction:column; gap:4px;">
+        <div style="font-size:19px; font-weight:600; letter-spacing:-0.01em;">Comms Dashboard</div>
+        <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:10.5px; letter-spacing:0.1em; color:#a1a1a6;">BLOB FACTOR · REVIEW WINDOW · LAST 28 DAYS</div>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <button style="width:40px; height:40px; border-radius:11px; border:1px solid rgba(0,0,0,0.08); background:#fff; cursor:pointer; font-size:15px; color:#86868b;">⚙</button>
+      <button style="height:40px; padding:0 18px; border-radius:11px; border:1px solid rgba(0,0,0,0.08); background:#fff; cursor:pointer; font-size:13.5px; font-weight:500; color:#1d1d1f;">Sign out</button>
+    </div>
+  </header>
+
+  <!-- BODY -->
+  <div style="display:flex; align-items:flex-start; gap:0; padding:0 24px 90px;">
+
+    <!-- LEFT SIDEBAR (intact) -->
+    <aside style="flex:none; width:300px; padding:0 20px 0 6px;">
+      <div style="position:relative; overflow:hidden; background:#e9e2cf; border-radius:18px; padding:20px 20px 18px; margin-bottom:24px;">
+        <div style="position:absolute; right:-30px; top:-20px; width:130px; height:130px; border-radius:50%; background:rgba(201,169,63,0.16);"></div>
+        <div style="position:relative; font-family:'Geist Mono',ui-monospace,monospace; font-size:11px; letter-spacing:0.1em; color:#7a6f4d; margin-bottom:8px;">BLOB FACTOR</div>
+        <div style="position:relative; display:flex; align-items:baseline; gap:8px;">
+          <div style="font-size:58px; font-weight:600; line-height:0.9; letter-spacing:-0.03em; color:#16150f;" class="tnum">65</div>
+          <div style="font-size:18px; color:#9a8f6b; font-weight:400;">/ 100</div>
+        </div>
+        <div style="position:relative; display:flex; align-items:center; gap:8px; margin-top:14px; font-size:13px; color:#6b6248;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#c9a93f;"></span>
+          monitor · 5 signals tracked
+        </div>
+      </div>
+
+      <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:11px; letter-spacing:0.12em; color:#a1a1a6; padding:0 4px 12px;">SIGNALS</div>
+
+      <sc-for list="{{ signals }}" as="s" hint-placeholder-count="8">
+        <div style="display:flex; align-items:center; gap:12px; padding:11px 12px; border-radius:14px; margin-bottom:4px; border:1px solid {{ s.cardBorder }}; background:{{ s.cardBg }};">
+          <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:11px; color:#bdbab2; width:18px;">{{ s.num }}</div>
+          <div style="width:36px; height:36px; flex:none; border-radius:10px; background:{{ s.iconBg }}; color:{{ s.iconColor }}; display:flex; align-items:center; justify-content:center; font-size:15px;">{{ s.icon }}</div>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:13.5px; font-weight:600; line-height:1.2; color:#16150f;">{{ s.name }}</div>
+            <div style="font-size:11.5px; color:#a1a1a6; margin-top:1px;">{{ s.sub }}</div>
+          </div>
+          <div style="display:flex; flex-direction:column; align-items:flex-end; gap:5px;">
+            <div style="font-size:15px; font-weight:600; color:{{ s.scoreColor }};" class="tnum">{{ s.score }}</div>
+            <div style="width:34px; height:3px; border-radius:2px; background:{{ s.scoreColor }};"></div>
+          </div>
+        </div>
+      </sc-for>
+    </aside>
+
+    <!-- MAIN -->
+    <main style="flex:1; min-width:0;">
+
+      <div style="display:flex; align-items:center; justify-content:space-between; gap:16px; margin-bottom:22px;">
+        <div style="display:flex; align-items:center; gap:9px; font-family:'Geist Mono',ui-monospace,monospace; font-size:11px; letter-spacing:0.1em; color:#a1a1a6;">
+          <span style="width:6px; height:6px; border-radius:50%; background:#1d1d1f;"></span>
+          ENGAGEMENT · EMAIL · MEETINGS · SLACK · LAST 28 DAYS
+        </div>
+        <div style="display:flex; gap:2px; padding:3px; background:rgba(0,0,0,0.04); border-radius:11px;">
+          <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+            <button onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- ============ VARIANT 1 — CHANNEL ============ -->
+      <sc-if value="{{ isV1 }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px; margin-bottom:18px;">
+          <sc-for list="{{ channels }}" as="c" hint-placeholder-count="3">
+            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:20px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:22px;">
+                <div style="display:flex; align-items:center; gap:9px;">
+                  <span style="width:8px; height:8px; border-radius:50%; background:{{ c.color }};"></span>
+                  <span style="font-size:13px; font-weight:500; color:#1d1d1f; letter-spacing:0.01em;">{{ c.name }}</span>
+                </div>
+                <div style="font-size:12px; font-weight:500; color:{{ c.dColor }};">{{ c.arrow }} {{ c.delta }}</div>
+              </div>
+              <div style="display:flex; align-items:baseline; gap:8px;">
+                <div style="font-size:40px; font-weight:600; letter-spacing:-0.035em; line-height:0.9;" class="tnum">{{ c.value }}</div>
+                <div style="font-size:13px; color:#a1a1a6; font-weight:400;">{{ c.unit }}</div>
+              </div>
+              <svg viewBox="0 0 {{ c.sp.w }} {{ c.sp.h }}" preserveAspectRatio="none" style="width:100%; height:48px; margin:18px 0 16px; display:block;">
+                <path d="{{ c.sp.area }}" fill="{{ c.color }}" fill-opacity="0.06"></path>
+                <path d="{{ c.sp.line }}" fill="none" stroke="{{ c.color }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>
+                <circle cx="{{ c.sp.lx }}" cy="{{ c.sp.ly }}" r="2.6" fill="#fff" stroke="{{ c.color }}" stroke-width="1.6"></circle>
+              </svg>
+              <div style="display:flex; gap:8px; border-top:1px solid rgba(0,0,0,0.05); padding-top:16px;">
+                <div style="flex:1;">
+                  <div style="font-size:10px; color:#bdbab2; font-family:'Geist Mono',ui-monospace,monospace; letter-spacing:0.06em;">{{ c.s1.k }}</div>
+                  <div style="font-size:15px; font-weight:500; margin-top:4px;" class="tnum">{{ c.s1.v }}</div>
+                </div>
+                <div style="flex:1;">
+                  <div style="font-size:10px; color:#bdbab2; font-family:'Geist Mono',ui-monospace,monospace; letter-spacing:0.06em;">{{ c.s2.k }}</div>
+                  <div style="font-size:15px; font-weight:500; margin-top:4px;" class="tnum">{{ c.s2.v }}</div>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:18px;">
+          <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="6">
+            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:18px; padding:22px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+              <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span style="width:6px; height:6px; border-radius:50%; background:{{ m.color }};"></span>
+                  <span style="font-size:12.5px; font-weight:500; color:#48484a;">{{ m.label }}</span>
+                </div>
+                <div style="font-size:11.5px; font-weight:500; color:{{ m.dColor }};">{{ m.arrow }} {{ m.delta }}</div>
+              </div>
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:12px;">
+                <div>
+                  <div style="font-size:30px; font-weight:600; letter-spacing:-0.03em; line-height:1;" class="tnum">{{ m.value }}</div>
+                  <div style="font-size:11.5px; color:#a1a1a6; margin-top:8px;">{{ m.sub }}</div>
+                </div>
+                <svg viewBox="0 0 {{ m.sp.w }} {{ m.sp.h }}" preserveAspectRatio="none" style="width:88px; height:34px; flex:none;">
+                  <path d="{{ m.sp.line }}" fill="none" stroke="{{ m.color }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path>
+                  <circle cx="{{ m.sp.lx }}" cy="{{ m.sp.ly }}" r="2.2" fill="{{ m.color }}"></circle>
+                </svg>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ============ VARIANT 2 — SCORE + LEADERBOARD ============ -->
+      <sc-if value="{{ isV2 }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="display:grid; grid-template-columns:1.35fr 1fr; gap:18px; margin-bottom:18px;">
+          <div style="background:#0b0b0c; color:#fff; border-radius:22px; padding:28px;">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:24px;">
+              <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:10.5px; letter-spacing:0.1em; color:#86868b;">ENGAGEMENT VOLUME · SUB-SCORE</div>
+              <div style="display:flex; gap:8px;">
+                <sc-for list="{{ overall.deltas }}" as="d" hint-placeholder-count="3">
+                  <div style="text-align:center; padding:6px 12px; border-radius:9px; border:1px solid rgba(255,255,255,0.1);">
+                    <div style="font-size:9.5px; color:#86868b; font-family:'Geist Mono',ui-monospace,monospace;">{{ d.k }}</div>
+                    <div style="font-size:13px; font-weight:500; color:{{ d.color }}; margin-top:3px;" class="tnum">{{ d.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:12px;">
+              <div style="font-size:84px; font-weight:600; letter-spacing:-0.05em; line-height:0.82;" class="tnum">100</div>
+              <div style="font-size:16px; color:#86868b;">/ 100</div>
+            </div>
+            <div style="font-size:14px; color:#a1a1a6; margin-top:14px; max-width:340px;">6,248 interactions across email, meetings and Slack this review window.</div>
+            <svg viewBox="0 0 {{ overall.sp.w }} {{ overall.sp.h }}" preserveAspectRatio="none" style="width:100%; height:110px; margin-top:20px; display:block;">
+              <path d="{{ overall.sp.area }}" fill="#ffffff" fill-opacity="0.06"></path>
+              <path d="{{ overall.sp.line }}" fill="none" stroke="#ffffff" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round" stroke-opacity="0.85"></path>
+              <circle cx="{{ overall.sp.lx }}" cy="{{ overall.sp.ly }}" r="3" fill="#fff"></circle>
+            </svg>
+          </div>
+          <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:22px; padding:28px; display:flex; flex-direction:column; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+            <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:10.5px; letter-spacing:0.1em; color:#a1a1a6; margin-bottom:20px;">CHANNEL MIX · LAST 28 DAYS</div>
+            <div style="display:flex; gap:3px; height:10px; margin-bottom:26px;">
+              <sc-for list="{{ mix }}" as="x" hint-placeholder-count="3">
+                <div style="width:{{ x.pct }}%; background:{{ x.color }}; border-radius:3px;"></div>
+              </sc-for>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:18px;">
+              <sc-for list="{{ mix }}" as="x" hint-placeholder-count="3">
+                <div style="display:flex; align-items:center; gap:12px;">
+                  <span style="width:8px; height:8px; border-radius:50%; background:{{ x.color }};"></span>
+                  <span style="font-size:14px; font-weight:500; flex:1;">{{ x.label }}</span>
+                  <span style="font-size:12.5px; color:#a1a1a6;">{{ x.count }}</span>
+                  <span style="font-size:15px; font-weight:600; width:46px; text-align:right;" class="tnum">{{ x.pct }}%</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </div>
+
+        <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:22px; padding:6px 10px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+          <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="6">
+            <div style="display:flex; align-items:center; gap:18px; padding:18px 16px; border-bottom:1px solid rgba(0,0,0,0.045);">
+              <span style="width:7px; height:7px; flex:none; border-radius:50%; background:{{ m.color }};"></span>
+              <div style="width:210px; flex:none;">
+                <div style="font-size:14.5px; font-weight:500;">{{ m.label }}</div>
+                <div style="font-size:11.5px; color:#a1a1a6; margin-top:2px;">{{ m.sub }}</div>
+              </div>
+              <div style="flex:1; min-width:0;">
+                <div style="height:5px; border-radius:3px; background:rgba(0,0,0,0.05); overflow:hidden;">
+                  <div style="height:100%; width:{{ m.pct }}%; background:{{ m.color }}; border-radius:3px;"></div>
+                </div>
+              </div>
+              <svg viewBox="0 0 {{ m.sp.w }} {{ m.sp.h }}" preserveAspectRatio="none" style="width:84px; height:28px; flex:none;">
+                <path d="{{ m.sp.line }}" fill="none" stroke="{{ m.color }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path>
+              </svg>
+              <div style="width:92px; flex:none; text-align:right;">
+                <div style="font-size:20px; font-weight:600; letter-spacing:-0.02em;" class="tnum">{{ m.value }}</div>
+              </div>
+              <div style="width:70px; flex:none; text-align:right; font-size:12px; font-weight:500; color:{{ m.dColor }};">{{ m.arrow }} {{ m.delta }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ============ VARIANT 3 — DENSE ANALYTICS ============ -->
+      <sc-if value="{{ isV3 }}" hint-placeholder-val="{{ true }}">
+      <div>
+        <div style="display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:18px;">
+          <sc-for list="{{ kpis }}" as="k" hint-placeholder-count="4">
+            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:16px; padding:18px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+              <div style="display:flex; align-items:center; justify-content:space-between;">
+                <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:10px; letter-spacing:0.08em; color:#bdbab2;">{{ k.label }}</div>
+                <div style="font-size:11px; font-weight:500; color:{{ k.dColor }};">{{ k.arrow }} {{ k.delta }}</div>
+              </div>
+              <div style="display:flex; align-items:flex-end; justify-content:space-between; gap:8px; margin-top:12px;">
+                <div style="font-size:26px; font-weight:600; letter-spacing:-0.025em; line-height:1;" class="tnum">{{ k.value }}</div>
+                <svg viewBox="0 0 {{ k.sp.w }} {{ k.sp.h }}" preserveAspectRatio="none" style="width:64px; height:24px; flex:none;">
+                  <path d="{{ k.sp.line }}" fill="none" stroke="{{ k.color }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path>
+                </svg>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1.5fr 1fr; gap:18px; margin-bottom:18px;">
+          <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:20px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
+              <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:10.5px; letter-spacing:0.09em; color:#a1a1a6;">VOLUME BY CHANNEL · 28 DAYS</div>
+              <div style="display:flex; gap:16px;">
+                <sc-for list="{{ channels }}" as="c" hint-placeholder-count="3">
+                  <div style="display:flex; align-items:center; gap:6px; font-size:11.5px; color:#86868b;"><span style="width:7px; height:7px; border-radius:50%; background:{{ c.color }};"></span>{{ c.name }}</div>
+                </sc-for>
+              </div>
+            </div>
+            <svg viewBox="0 0 600 170" preserveAspectRatio="none" style="width:100%; height:200px; display:block;">
+              <sc-for list="{{ channels }}" as="c" hint-placeholder-count="3">
+                <path d="{{ c.big.area }}" fill="{{ c.color }}" fill-opacity="0.05"></path>
+                <path d="{{ c.big.line }}" fill="none" stroke="{{ c.color }}" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"></path>
+              </sc-for>
+            </svg>
+          </div>
+
+          <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:20px; padding:24px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+            <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+              <div style="font-family:'Geist Mono',ui-monospace,monospace; font-size:10.5px; letter-spacing:0.09em; color:#a1a1a6;">ACTIVITY STREAK</div>
+              <div style="font-size:11.5px; color:#a1a1a6;">consecutive active days</div>
+            </div>
+            <div style="display:flex; align-items:baseline; gap:8px; margin:14px 0 20px;">
+              <div style="font-size:40px; font-weight:600; letter-spacing:-0.03em; line-height:0.9;" class="tnum">23</div>
+              <div style="font-size:13px; color:#a1a1a6;">days · best 31</div>
+            </div>
+            <div style="display:grid; grid-template-columns:repeat(7,1fr); gap:7px;">
+              <sc-for list="{{ streak }}" as="d" hint-placeholder-count="28">
+                <div style="aspect-ratio:1; border-radius:5px; background:{{ d.bg }};"></div>
+              </sc-for>
+            </div>
+            <div style="display:flex; align-items:center; gap:7px; margin-top:18px; font-size:10.5px; color:#bdbab2;">
+              less
+              <span style="width:11px; height:11px; border-radius:3px; background:#efefed;"></span>
+              <span style="width:11px; height:11px; border-radius:3px; background:#d4d3d0;"></span>
+              <span style="width:11px; height:11px; border-radius:3px; background:#9b9a96;"></span>
+              <span style="width:11px; height:11px; border-radius:3px; background:#3a3a3c;"></span>
+              more
+            </div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:14px;">
+          <sc-for list="{{ metrics }}" as="m" hint-placeholder-count="6">
+            <div style="background:#fff; border:1px solid rgba(0,0,0,0.06); border-radius:16px; padding:18px; display:flex; align-items:center; gap:14px; box-shadow:0 1px 2px rgba(0,0,0,0.03);">
+              <div style="flex:1; min-width:0;">
+                <div style="display:flex; align-items:center; gap:7px;">
+                  <span style="width:6px; height:6px; border-radius:50%; background:{{ m.color }};"></span>
+                  <span style="font-size:12px; font-weight:500; color:#48484a;">{{ m.label }}</span>
+                </div>
+                <div style="display:flex; align-items:baseline; gap:8px; margin-top:8px;">
+                  <div style="font-size:24px; font-weight:600; letter-spacing:-0.025em; line-height:1;" class="tnum">{{ m.value }}</div>
+                  <div style="font-size:11px; font-weight:500; color:{{ m.dColor }};">{{ m.arrow }} {{ m.delta }}</div>
+                </div>
+              </div>
+              <svg viewBox="0 0 {{ m.sp.w }} {{ m.sp.h }}" preserveAspectRatio="none" style="width:68px; height:32px; flex:none;">
+                <path d="{{ m.sp.line }}" fill="none" stroke="{{ m.color }}" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"></path>
+              </svg>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+    </main>
+  </div>
+
+  <!-- snapshot pill -->
+  <div style="position:fixed; left:24px; bottom:20px; display:flex; align-items:center; gap:10px; padding:9px 12px 9px 16px; background:#16150f; border-radius:30px; box-shadow:0 10px 34px rgba(0,0,0,0.20);">
+    <div style="display:flex; align-items:center; gap:9px; color:#fff; font-size:13px;">
+      <span style="width:7px; height:7px; border-radius:50%; background:#6fd09a;"></span>
+      Snapshot · cached · 18 Jun, 18:54
+    </div>
+    <button style="height:30px; padding:0 13px; border-radius:16px; border:1px solid #3a3833; background:transparent; color:#e8e6e0; font-size:12.5px; font-weight:400; cursor:pointer;">Refresh from live</button>
+    <button style="height:30px; padding:0 13px; border-radius:16px; border:1px solid #3a3833; background:transparent; color:#e8e6e0; font-size:12.5px; font-weight:400; cursor:pointer;">Export</button>
+    <button style="height:30px; padding:0 13px; border-radius:16px; border:1px solid #5a3a33; background:transparent; color:#e6a594; font-size:12.5px; font-weight:400; cursor:pointer;">Clear</button>
+  </div>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  state = { variant: 1 };
+
+  rnd(seed){ let t = seed + 0x6D2B79F5; return () => { t = Math.imul(t ^ t>>>15, t|1); t ^= t + Math.imul(t ^ t>>>7, t|61); return ((t ^ t>>>14) >>> 0) / 4294967296; }; }
+  ser(seed,n,base,amp,trend){ const r=this.rnd(seed); const o=[]; for(let i=0;i<n;i++) o.push(base + trend*i + (r()-0.5)*amp); return o; }
+  sline(pts){
+    if(pts.length<2) return '';
+    let d=`M${pts[0][0].toFixed(1)} ${pts[0][1].toFixed(1)}`;
+    for(let i=0;i<pts.length-1;i++){
+      const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2, t=0.16;
+      const c1x=p1[0]+(p2[0]-p0[0])*t, c1y=p1[1]+(p2[1]-p0[1])*t;
+      const c2x=p2[0]-(p3[0]-p1[0])*t, c2y=p2[1]-(p3[1]-p1[1])*t;
+      d+=` C${c1x.toFixed(1)} ${c1y.toFixed(1)} ${c2x.toFixed(1)} ${c2y.toFixed(1)} ${p2[0].toFixed(1)} ${p2[1].toFixed(1)}`;
+    }
+    return d;
+  }
+  spark(s,w,h,p){
+    const mn=Math.min(...s), mx=Math.max(...s), rg=(mx-mn)||1, n=s.length;
+    const pts=s.map((v,i)=>[ p+(i/(n-1))*(w-2*p), (h-p)-((v-mn)/rg)*(h-2*p) ]);
+    const line=this.sline(pts);
+    const area=line+` L${pts[n-1][0].toFixed(1)} ${(h-p).toFixed(1)} L${pts[0][0].toFixed(1)} ${(h-p).toFixed(1)} Z`;
+    return { line, area, lx:+pts[n-1][0].toFixed(1), ly:+pts[n-1][1].toFixed(1), w, h };
+  }
+  sp(seed,base,amp,trend,w,h){ return this.spark(this.ser(seed,24,base,amp,trend), w||150, h||46, 4); }
+
+  delta(good,dir,delta){
+    return {
+      delta,
+      arrow: dir==='up' ? '↑' : dir==='down' ? '↓' : '·',
+      dColor: good ? '#2f8a5b' : dir==='flat' ? '#9b9a96' : '#bf5236'
+    };
+  }
+
+  renderVals(){
+    const C = { email:'#5e7798', slack:'#80739f', meeting:'#a3855c', all:'#1d1d1f' };
+    const v = this.state.variant;
+
+    const tabLabels = [[1,'Channel'],[2,'Score board'],[3,'Dense']];
+    const tabs = tabLabels.map(([n,label]) => ({
+      label,
+      onClick: () => this.setState({ variant: n }),
+      style: `border:none; cursor:pointer; font-size:12.5px; font-weight:500; padding:7px 15px; border-radius:9px; font-family:inherit; transition:all .15s; ` +
+        (v===n ? 'background:#fff; color:#1d1d1f; box-shadow:0 1px 2px rgba(0,0,0,0.08);' : 'background:transparent; color:#86868b;')
+    }));
+
+    const channels = [
+      { name:'Email', color:C.email, value:'1,140', unit:'messages',
+        ...this.delta(true,'up','6%'), s1:{k:'SENT',v:'312'}, s2:{k:'AVG REPLY',v:'2h 04m'},
+        sp:this.sp(11,40,22,-0.3,150,46), big:this.spark(this.ser(11,24,40,22,-0.3),600,170,10) },
+      { name:'Meetings', color:C.meeting, value:'41', unit:'sessions',
+        ...this.delta(true,'up','9%'), s1:{k:'PER WEEK',v:'6.2'}, s2:{k:'TALK-TIME',v:'22%'},
+        sp:this.sp(23,18,9,0.2,150,46), big:this.spark(this.ser(23,24,18,9,0.2),600,170,10) },
+      { name:'Slack', color:C.slack, value:'5,108', unit:'messages',
+        ...this.delta(true,'up','11%'), s1:{k:'CHANNELS',v:'34'}, s2:{k:'THREAD DEPTH',v:'4.2'},
+        sp:this.sp(37,120,55,0.6,150,46), big:this.spark(this.ser(37,24,120,55,0.6),600,170,10) },
+    ];
+
+    const mDefs = [
+      { label:'Reply latency', sub:'median first response', value:'1h 12m', chan:'email', pct:64, good:true, dir:'down', delta:'14%', seed:51, base:60, amp:22, trend:-0.5 },
+      { label:'After-hours ratio', sub:'messages sent 6pm–8am', value:'18%', chan:'meeting', pct:18, good:false, dir:'up', delta:'3pts', seed:52, base:20, amp:10, trend:0.2 },
+      { label:'Channels reached', sub:'distinct Slack channels', value:'34', chan:'slack', pct:72, good:true, dir:'up', delta:'5', seed:53, base:26, amp:6, trend:0.3 },
+      { label:'Thread depth', sub:'avg replies per thread', value:'4.2', chan:'slack', pct:70, good:true, dir:'up', delta:'0.6', seed:54, base:3.6, amp:1.0, trend:0.03 },
+      { label:'Meeting talk-time', sub:'share of airtime', value:'22%', chan:'meeting', pct:22, good:false, dir:'down', delta:'2pts', seed:55, base:24, amp:8, trend:-0.1 },
+      { label:'Active streak', sub:'consecutive active days', value:'23 d', chan:'all', pct:74, good:true, dir:'up', delta:'best 31', seed:56, base:14, amp:5, trend:0.4 },
+    ];
+    const metrics = mDefs.map(d => ({
+      label:d.label, sub:d.sub, value:d.value, pct:d.pct, color:C[d.chan],
+      ...this.delta(d.good,d.dir,d.delta),
+      sp:this.sp(d.seed,d.base,d.amp,d.trend,120,36)
+    }));
+
+    const kpiDefs = [
+      { label:'MESSAGES', value:'6,248', chan:'all', good:true, dir:'up', delta:'8%', seed:61, base:200, amp:60, trend:0.4 },
+      { label:'SENT', value:'547', chan:'email', good:true, dir:'up', delta:'4%', seed:62, base:18, amp:8, trend:0.1 },
+      { label:'RECEIVED', value:'5,701', chan:'slack', good:true, dir:'up', delta:'9%', seed:63, base:180, amp:55, trend:0.5 },
+      { label:'REPLY TIME', value:'1h 12m', chan:'meeting', good:true, dir:'down', delta:'14%', seed:64, base:80, amp:24, trend:-0.6 },
+    ];
+    const kpis = kpiDefs.map(d => ({
+      label:d.label, value:d.value, color:C[d.chan],
+      ...this.delta(d.good,d.dir,d.delta),
+      sp:this.sp(d.seed,d.base,d.amp,d.trend,90,30)
+    }));
+
+    const mix = [
+      { label:'Slack', pct:70, count:'5,108 msgs', color:C.slack },
+      { label:'Email', pct:18, count:'1,140 msgs', color:C.email },
+      { label:'Meetings', pct:12, count:'41 sessions', color:C.meeting },
+    ];
+
+    const overall = {
+      sp:this.spark(this.ser(70,24,40,28,0.5),620,110,10),
+      deltas:[
+        { k:'7D', v:'−1', color:'#e6a594' },
+        { k:'30D', v:'−6', color:'#e6a594' },
+        { k:'90D', v:'+0', color:'#86868b' },
+      ]
+    };
+
+    const sr = this.rnd(99);
+    const ramp = ['#efefed','#d4d3d0','#9b9a96','#3a3a3c'];
+    const streak = Array.from({length:28}, () => ({ bg: ramp[Math.floor(sr()*4)] }));
+
+    const scoreColor = s => s>=80 ? '#2f8a5b' : s>=50 ? '#b8902f' : '#bf5236';
+    const sigDefs = [
+      { num:'01', name:'Rhythm', sub:'cadence & peak hours', icon:'∿', score:43 },
+      { num:'02', name:'Engagement Volume', sub:'interactions count', icon:'💬', score:100, active:true },
+      { num:'03', name:'Participation', sub:'visibility in meetings', icon:'◉', score:20 },
+      { num:'04', name:'Presence', sub:'time & availability', icon:'◷', score:100 },
+      { num:'05', name:'Reaction Time', sub:'effort & responsiveness', icon:'⚡', score:60 },
+      { num:'06', name:'Sentiment Analysis', sub:'language & mindset', icon:'☺', score:88 },
+      { num:'07', name:'Social Brand Rep', sub:'ambassador signal', icon:'◁', score:23 },
+      { num:'08', name:'Slack Breakdown', sub:'raw data & diagnostics', icon:'▤', score:'6,248', isCount:true },
+    ];
+    const signals = sigDefs.map(s => ({
+      num:s.num, name:s.name, sub:s.sub, icon:s.icon, score:s.score,
+      scoreColor: s.isCount ? '#a3855c' : scoreColor(s.score),
+      iconBg: s.active ? '#12a06a' : '#f4f2ee',
+      iconColor: s.active ? '#fff' : '#86868b',
+      cardBg: s.active ? '#fff' : 'transparent',
+      cardBorder: s.active ? 'rgba(0,0,0,0.08)' : 'transparent'
+    }));
+
+    return {
+      tabs,
+      isV1: v===1, isV2: v===2, isV3: v===3,
+      channels, metrics, kpis, mix, overall, streak, signals
+    };
+  }
+}
+</script>
+</body>
+</html>
