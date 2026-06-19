@@ -5838,7 +5838,9 @@ init();
     slack.messages.forEach(function(m){
       var d=new Date((m.ts||0)*1000);
       if(isNaN(d.getTime()))return;
-      if(slack.myUserId&&m.userId!==slack.myUserId)return;
+      var uid=slack.myUserId||null;
+      try{if(!uid)uid=sessionStorage.getItem('slack_user_id')||null;}catch(e){}
+      if(uid&&String(m.userId||'')!==String(uid))return;
       out.push({ts:d,source:'slack',kind:'sent'});
     });
     var cal=(typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];
@@ -5996,12 +5998,23 @@ init();
       return '<span class="wyw-bsuf '+cls+'">'+ar+' '+s+(unit==='pp'?Math.round(ab):ab.toFixed(1))+(unit?(' '+unit):'')+' vs prior 4w</span>';
     }
 
+    var emailSentN=acts.filter(function(a){return a.source==='email';}).length;
+    var slackSentN=acts.filter(function(a){return a.source==='slack';}).length;
+    var calSentN=acts.filter(function(a){return a.source==='calendar';}).length;
+    var slackAll=(typeof SLACK_DATA!=='undefined'&&SLACK_DATA&&SLACK_DATA.messages)?SLACK_DATA.messages.length:0;
+    var snap=(typeof IS_SNAPSHOT!=='undefined'&&IS_SNAPSHOT);
+
     var html='<div class="wyw-root">';
+    if(snap&&slackAll===0){
+      html+='<div class="wyw-warn">Snapshot has no Slack data — click <strong>Refresh from live</strong> at the bottom to pull Slack messages.</div>';
+    }else if(slackAll>0&&slackSentN===0){
+      html+='<div class="wyw-warn">Slack is connected but no messages match your user id — reconnect Slack or refresh from live.</div>';
+    }
     html+='<div class="wyw-strip">'
       +'<div class="wyw-strip-stats">'
-        +'<div class="wyw-st"><span class="wyw-st-lab">FIRST ACTIVITY</span><span class="wyw-st-val wyw-mono">'+(first?fmtDate(first):'—')+'</span></div>'
+        +'<div class="wyw-st"><span class="wyw-st-lab">FIRST SENT</span><span class="wyw-st-val wyw-mono">'+(first?fmtDate(first):'—')+'</span></div>'
         +'<div class="wyw-st"><span class="wyw-st-lab">DAYS COVERED</span><span class="wyw-st-val wyw-mono">'+daysCovered+'</span></div>'
-        +'<div class="wyw-st"><span class="wyw-st-lab">TOTAL EVENTS</span><span class="wyw-st-val wyw-mono">'+acts.length.toLocaleString()+'</span></div>'
+        +'<div class="wyw-st"><span class="wyw-st-lab">TOTAL SENT</span><span class="wyw-st-val wyw-mono">'+acts.length.toLocaleString()+'</span><span class="wyw-st-sub wyw-mono">'+emailSentN+' email · '+slackSentN+' slack · '+calSentN+' cal</span></div>'
       +'</div>'
       +'<div class="wyw-strip-right">'
         +'<div class="wyw-scoreblock"><div class="wyw-sb-lab">RHYTHM SCORE</div><div class="wyw-sb-row"><div class="wyw-sb-val wyw-mono">'+overall+'</div><div class="wyw-sb-deltas">'+scoreDelta('7D',d7)+scoreDelta('30D',d30)+scoreDelta('90D',d90)+'</div></div></div>'
@@ -6163,6 +6176,8 @@ init();
     '.wyw-st{display:flex;flex-direction:column;gap:2px}'+
     '.wyw-st-lab{font-size:9.5px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;font-weight:600}'+
     '.wyw-st-val{font-size:15px;font-weight:500;color:var(--ink);white-space:nowrap}'+
+    '.wyw-st-sub{display:block;font-size:9px;color:var(--ink3);margin-top:2px;letter-spacing:.02em}'+
+    '.wyw-warn{margin:0;padding:10px 22px;background:#fff6e6;border-bottom:1px solid #f0e0b8;color:#7a5a12;font-size:12px;line-height:1.4}'+
     '.wyw-strip-right{display:flex;align-items:center;gap:18px}'+
     '.wyw-scoreblock{display:flex;flex-direction:column;gap:3px}'+
     '.wyw-sb-lab{font-size:9.5px;color:var(--ink3);letter-spacing:.08em;text-transform:uppercase;font-weight:600}'+
@@ -6263,6 +6278,7 @@ init();
     updateAuthBadges.__wyw=true;
   }
   try{window.ensureConnectPrompts();}catch(e){}
+  window.wywGetActivities=getActivities;
 })();/*WYW_END*/</script>
 <script>/*BLOB_FACTOR_START*/(function __bfInit(){
   function pad(n){return String(n).padStart(2,'0');}
@@ -6498,7 +6514,7 @@ init();
      +'</aside>'
      +'<main class="bf-main">'
       +(state.active==='slackdebug'||state.active==='emaildebug'||state.active==='engagement'?''
-        :'<div class="bf-overview-label bf-mono">1-YEAR OVERVIEW</div>'
+        :'<div class="bf-overview-label bf-mono">'+(state.active==='rhythm'?'SENT ACTIVITY OVERVIEW':'1-YEAR OVERVIEW')+'</div>'
         +'<div class="bf-tiles">'+renderTiles()+'</div>')
       +(state.active==='slackdebug'||state.active==='emaildebug'||state.active==='engagement'?''
         :'<div class="bf-signal-head bf-mono"><span class="bf-headicon">'+(ICONS[navItem.id]||'')+'</span> <span class="bf-signal-label">'+navItem.label.toUpperCase()+'</span> <span class="bf-sep">·</span> <span class="bf-signal-sub">'+navItem.sub+'</span></div>')
@@ -6510,6 +6526,7 @@ init();
   }
 
   function renderTiles(){
+    if(state.active==='rhythm'&&typeof window.wywGetActivities==='function')return renderRhythmTiles(window.wywGetActivities());
     var acts=getSig(), cal=getCal();
     var total=acts.length, sent=acts.filter(function(s){return s.type==='sent';}).length, rec=acts.filter(function(s){return s.type==='received';}).length;
     var hist=new Array(24).fill(0), dow=new Array(7).fill(0);
@@ -6526,6 +6543,32 @@ init();
       {label:'Busiest Day',  hero:DOW[bd],            sub:'most activity'},
       {label:'Busiest Hour', hero:fmtHour12(bh),      sub:'peak activity time'},
       {label:'Meetings / wk',hero:mtgPerWeek,         sub:cal.length+' total over '+weeks+'w'}
+    ];
+    return tiles.map(function(t){
+      return '<div class="bf-tile"><div class="bf-tile-label bf-mono">'+t.label+'</div><div class="bf-tile-hero">'+t.hero+'</div><div class="bf-tile-sub">'+t.sub+'</div></div>';
+    }).join('');
+  }
+
+  function renderRhythmTiles(acts){
+    var emailSent=acts.filter(function(a){return a.source==='email';}).length;
+    var slackSent=acts.filter(function(a){return a.source==='slack';}).length;
+    var calSent=acts.filter(function(a){return a.source==='calendar';}).length;
+    var total=acts.length;
+    var hist=new Array(24).fill(0), dow=new Array(7).fill(0);
+    acts.forEach(function(a){var d=a.ts;if(d&&!isNaN(d.getTime())){hist[d.getHours()]++;dow[d.getDay()]++;}});
+    var bh=hist.indexOf(Math.max.apply(null,hist));
+    var bd=dow.indexOf(Math.max.apply(null,dow));
+    var calOrg=getCal().filter(function(e){return e.isOrganizer;});
+    var firstT=acts.length?acts[0].ts.getTime():Date.now();
+    var weeks=Math.max(1, Math.ceil((Date.now()-firstT)/(7*86400000)));
+    var mtgPerWeek=calOrg.length?(calOrg.length/weeks).toFixed(1):'0';
+    var tiles=[
+      {label:'Sent total', hero:total.toLocaleString(), sub:'email + slack + calendar invites'},
+      {label:'Email sent', hero:emailSent.toLocaleString(), sub:Math.round(emailSent/Math.max(1,total)*100)+'% of sent'},
+      {label:'Slack sent', hero:slackSent.toLocaleString(), sub:Math.round(slackSent/Math.max(1,total)*100)+'% of sent'},
+      {label:'Calendar invites', hero:calSent.toLocaleString(), sub:'organized by you'},
+      {label:'Busiest day', hero:DOW[bd], sub:'most sent activity'},
+      {label:'Busiest hour', hero:fmtHour12(bh), sub:'peak sent activity'}
     ];
     return tiles.map(function(t){
       return '<div class="bf-tile"><div class="bf-tile-label bf-mono">'+t.label+'</div><div class="bf-tile-hero">'+t.hero+'</div><div class="bf-tile-sub">'+t.sub+'</div></div>';
