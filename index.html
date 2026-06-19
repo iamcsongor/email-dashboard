@@ -5819,31 +5819,40 @@ init();
   function getView(){try{return localStorage.getItem('wyw_view')||'day';}catch(e){return 'day';}}
   window.wywToggleDayOff=function(key){var s=getDaysOff();var i=s.indexOf(key);if(i>=0)s.splice(i,1);else s.push(key);try{localStorage.setItem('wyw_daysoff',JSON.stringify(s));}catch(e){}try{window.renderWhenYouWork();}catch(e){}};
 
-  function emptySlot(){return {count:0,emailSent:0,emailRecv:0,slackSent:0,slackRecv:0};}
+  function emptySlot(){return {count:0,emailSent:0,slackSent:0,calSent:0};}
   function addToSlot(slot,a){
     slot.count++;
     if(a.source==='email'&&a.kind==='sent')slot.emailSent++;
-    else if(a.source==='email'&&a.kind==='received')slot.emailRecv++;
     else if(a.source==='slack'&&a.kind==='sent')slot.slackSent++;
-    else if(a.source==='slack'&&a.kind==='received')slot.slackRecv++;
+    else if(a.source==='calendar'&&a.kind==='sent')slot.calSent++;
   }
 
   function getActivities(){
-    if(typeof buildActivitySignals!=='function')return [];
-    var sig; try{sig=buildActivitySignals()||[];}catch(e){return [];}
     var out=[];
-    sig.forEach(function(s){
-      if(!s||!s.ts)return;
-      var d=s.ts instanceof Date?s.ts:new Date(s.ts);
-      if(!d||isNaN(d.getTime()))return;
-      out.push({ts:d,source:s.source,kind:s.type});
+    var sent=(typeof ALL_SENT!=='undefined'&&ALL_SENT)?ALL_SENT:[];
+    sent.forEach(function(m){
+      var d=m.sentDateTime?new Date(m.sentDateTime):null;
+      if(d&&!isNaN(d.getTime()))out.push({ts:d,source:'email',kind:'sent'});
+    });
+    var slack=(typeof SLACK_DATA!=='undefined'&&SLACK_DATA)?SLACK_DATA:{messages:[],myUserId:null};
+    slack.messages.forEach(function(m){
+      var d=new Date((m.ts||0)*1000);
+      if(isNaN(d.getTime()))return;
+      if(slack.myUserId&&m.userId!==slack.myUserId)return;
+      out.push({ts:d,source:'slack',kind:'sent'});
+    });
+    var cal=(typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];
+    cal.forEach(function(e){
+      if(!e.isOrganizer)return;
+      var d=e.start instanceof Date?e.start:new Date(e.start);
+      if(d&&!isNaN(d.getTime()))out.push({ts:d,source:'calendar',kind:'sent'});
     });
     out.sort(function(a,b){return a.ts-b.ts;});
     return out;
   }
   function getMeetings(){
     var CD=(typeof CALENDAR_DATA!=='undefined'&&CALENDAR_DATA)?CALENDAR_DATA:[];
-    return CD.map(function(m){var st=m.start instanceof Date?m.start:new Date(m.start);return {start:st,attendees:m.attendeeCount||0,isOrg:!!m.isOrganizer,hasExt:!!m.hasExternal};}).filter(function(m){return m.start&&!isNaN(m.start.getTime());});
+    return CD.filter(function(m){return !!m.isOrganizer;}).map(function(m){var st=m.start instanceof Date?m.start:new Date(m.start);return {start:st,attendees:m.attendeeCount||0,isOrg:true,hasExt:!!m.hasExternal};}).filter(function(m){return m.start&&!isNaN(m.start.getTime());});
   }
 
   function bucketByDay(acts){
@@ -5853,14 +5862,14 @@ init();
       var key=keyOf(logical);
       var ds=new Date(logical); ds.setHours(CUT,0,0,0);
       var elapsed=Math.floor((local-ds)/60000);
-      var slot=Math.max(0,Math.min(cols-1,Math.floor(elapsed/GRAN)));
+      var slotIdx=Math.max(0,Math.min(cols-1,Math.floor(elapsed/GRAN)));
       var row=days.get(key);
       if(!row){row={key:key,date:logical,slots:[],first:null,last:null,total:0,_kind:'day'};for(var i=0;i<cols;i++)row.slots.push(emptySlot());days.set(key,row);}
-      var slot=row.slots[slot];
-      addToSlot(slot,a);
+      var slotObj=row.slots[slotIdx];
+      addToSlot(slotObj,a);
       row.total++;
-      if(row.first==null||slot<row.first.slot)row.first={slot:slot,ts:a.ts,minOfDay:elapsed};
-      if(row.last==null||slot>row.last.slot)row.last={slot:slot,ts:a.ts,minOfDay:elapsed};
+      if(row.first==null||slotIdx<row.first.slot)row.first={slot:slotIdx,ts:a.ts,minOfDay:elapsed};
+      if(row.last==null||slotIdx>row.last.slot)row.last={slot:slotIdx,ts:a.ts,minOfDay:elapsed};
     });
     return {rows:Array.from(days.values()).sort(function(a,b){return b.date-a.date;}),cols:cols};
   }
@@ -5877,9 +5886,8 @@ init();
       for(var i=0;i<cols;i++){
         w.slots[i].count += r.slots[i].count;
         w.slots[i].emailSent += r.slots[i].emailSent;
-        w.slots[i].emailRecv += r.slots[i].emailRecv;
         w.slots[i].slackSent += r.slots[i].slackSent;
-        w.slots[i].slackRecv += r.slots[i].slackRecv;
+        w.slots[i].calSent += r.slots[i].calSent;
       }
       if(r.first) w.dayFirsts.push(r.first.minOfDay);
       if(r.last) w.dayLasts.push(r.last.minOfDay);
@@ -6060,7 +6068,7 @@ init();
       html+='<div class="wyw-rtrack" style="height:'+(ROWH+6)+'px"><div class="wyw-baseline"></div>';
       ticks.forEach(function(h){html+='<div class="wyw-grid" style="left:'+minToPct(h*60)+'%"></div>';});
       if(has){
-        r.slots.forEach(function(s,i){if(s.count===0)return;var inten=s.count/maxSlot;html+='<div class="wyw-dens" data-es="'+s.emailSent+'" data-er="'+s.emailRecv+'" data-ss="'+s.slackSent+'" data-sr="'+s.slackRecv+'" style="left:'+minToPct(i*GRAN)+'%;width:'+slotW+'%;height:'+ROWH+'px;background:'+cellColor(inten)+'"></div>';});
+        r.slots.forEach(function(s,i){if(s.count===0)return;var inten=s.count/maxSlot;html+='<div class="wyw-dens" data-es="'+s.emailSent+'" data-ss="'+s.slackSent+'" data-cs="'+s.calSent+'" style="left:'+minToPct(i*GRAN)+'%;width:'+slotW+'%;height:'+ROWH+'px;background:'+cellColor(inten)+'"></div>';});
         if(bw>0)html+='<div class="wyw-bell" style="left:'+bl+'%;width:'+bw+'%"></div>';
         html+='<div class="wyw-cap wyw-cfirst" style="left:'+fp+'%"></div><div class="wyw-cap wyw-clast" style="left:'+lp+'%"></div>';
       }
@@ -6071,7 +6079,7 @@ init();
       html+='</div>';
     });
     html+='</div></div></div>'
-      +'<footer class="wyw-foot"><span class="wyw-fnote">'+(view==='week'?'Weeks aggregate Mon–Sun. Cells sum activity across 7 days; AVG start/end are medians of the week\'s days.':'Logical days — anything before '+pad(CUT)+':00 folds into the previous evening. Click any date to mark it a day off.')+'</span></footer>'
+      +'<footer class="wyw-foot"><span class="wyw-fnote">'+(view==='week'?'Weeks aggregate Mon–Sun. Cells sum Slack sent, email sent & calendar invites you organized; AVG start/end are medians of the week\'s days.':'Slack sent, email sent & calendar invites you organized — anything before '+pad(CUT)+':00 folds into the previous evening. Click any date to mark it a day off.')+'</span></footer>'
       +'</section>';
 
     html+='<aside class="wyw-ins">'
@@ -6098,11 +6106,11 @@ init();
       var active=null;
       function hideTip(){tip.style.display='none';active=null;}
       function showTip(el,e){
-        var es=+el.dataset.es||0, er=+el.dataset.er||0, ss=+el.dataset.ss||0, sr=+el.dataset.sr||0;
+        var es=+el.dataset.es||0, ss=+el.dataset.ss||0, cs=+el.dataset.cs||0;
         tip.innerHTML='<div class="wyw-tip-row"><span>Email sent</span><span class="wyw-mono">'+es+'</span></div>'
-          +'<div class="wyw-tip-row"><span>Email received</span><span class="wyw-mono">'+er+'</span></div>'
           +'<div class="wyw-tip-row"><span>Slack sent</span><span class="wyw-mono">'+ss+'</span></div>'
-          +'<div class="wyw-tip-row"><span>Slack received</span><span class="wyw-mono">'+sr+'</span></div>';
+          +'<div class="wyw-tip-row"><span>Calendar invites</span><span class="wyw-mono">'+cs+'</span></div>'
+          +'<div class="wyw-tip-row"><span>Total</span><span class="wyw-mono">'+(es+ss+cs)+'</span></div>';
         tip.style.display='block';
         tip.style.left=(e.clientX+14)+'px';
         tip.style.top=(e.clientY+14)+'px';
