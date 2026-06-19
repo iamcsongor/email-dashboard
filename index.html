@@ -2562,6 +2562,7 @@ async function signOut() {
   ALL_RECEIVED = [];
   ALL_SENT = [];
   EMAIL_FETCH_META = null;
+  destroyEmailCharts();
   REL_CONTACTS = [];
   IS_DEMO = false;
   IS_SNAPSHOT = false;
@@ -4039,7 +4040,21 @@ const SENT_COLOR  = "#f97066";
 // ════════════════════════════════════════════════
 // RENDER DASHBOARD
 // ════════════════════════════════════════════════
+const emailChartInstances = [];
+function destroyEmailCharts() {
+  emailChartInstances.forEach(c => c.destroy());
+  emailChartInstances.length = 0;
+}
+function emailChart(id, config) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const c = new Chart(el, config);
+  emailChartInstances.push(c);
+  return c;
+}
+
 function renderDashboard(received, sent) {
+  destroyEmailCharts();
   // Update overview label to reflect chosen range
   const lbl = document.getElementById("overview-label");
   if (lbl) {
@@ -4134,7 +4149,7 @@ function renderTimeline(received, sent) {
     return d.toLocaleDateString("en", { month: "short", day: "numeric" });
   });
 
-  new Chart(document.getElementById("c-timeline"), {
+  emailChart("c-timeline", {
     type: "line",
     data: {
       labels,
@@ -4183,7 +4198,7 @@ function renderTimeline(received, sent) {
 // ── Day of week (clickable) ─────────────────────
 function renderDow(received, sent) {
   const labels = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
-  new Chart(document.getElementById("c-dow"), {
+emailChart("c-dow", {
     type: "bar",
     data: {
       labels,
@@ -4219,7 +4234,7 @@ function renderHod(received, sent) {
   const labels = Array.from({ length: 24 }, (_, i) =>
     i === 0 ? "12am" : i < 12 ? `${i}am` : i === 12 ? "12pm" : `${i-12}pm`
   );
-  new Chart(document.getElementById("c-hod"), {
+emailChart("c-hod", {
     type: "bar",
     data: {
       labels,
@@ -4253,7 +4268,7 @@ function renderHod(received, sent) {
 // ── Top senders (clickable) ─────────────────────
 function renderTopSenders(received) {
   const top = topN(received, m => [m.from?.emailAddress?.address || ""], 10);
-  new Chart(document.getElementById("c-senders"), {
+  emailChart("c-senders", {
     type: "bar",
     data: {
       labels: top.map(([k]) => k.split("@")[0]),
@@ -4279,7 +4294,7 @@ function renderTopSenders(received) {
 // ── Top recipients (clickable) ──────────────────
 function renderTopRecipients(sent) {
   const top = topN(sent, m => (m.toRecipients || []).map(r => r.emailAddress?.address || ""), 10);
-  new Chart(document.getElementById("c-recipients"), {
+  emailChart("c-recipients", {
     type: "bar",
     data: {
       labels: top.map(([k]) => k.split("@")[0]),
@@ -4316,7 +4331,7 @@ function renderResponseTimes(received, sent) {
     conv[id].push(new Date(m.receivedDateTime).getTime());
   });
 
-  new Chart(document.getElementById("c-response"), {
+  emailChart("c-response", {
     type: "bar",
     data: {
       labels: bucketKeys,
@@ -4356,7 +4371,7 @@ function renderResponseTimes(received, sent) {
 // ── Read rate (clickable) ────────────────────────
 function renderReadRate(received) {
   const monthly = calcMonthlyReadRate(received);
-  new Chart(document.getElementById("c-readrate"), {
+  emailChart("c-readrate", {
     type: "bar",
     data: {
       labels: monthly.map(m => m.label),
@@ -4393,7 +4408,7 @@ function renderReadRate(received) {
 // ── Attachments (clickable) ──────────────────────
 function renderAttachments(received, sent) {
   const { months, labels, data } = calcMonthlyAttachments(received, sent);
-  new Chart(document.getElementById("c-attachments"), {
+  emailChart("c-attachments", {
     type: "bar",
     data: {
       labels,
@@ -4770,7 +4785,7 @@ function renderEngagementScore(received, sent) {
   const scores = calcEngagementScore(received, sent);
   if (!scores.length) return;
 
-  new Chart(document.getElementById("c-engagement"), {
+  emailChart("c-engagement", {
     type: "line",
     data: {
       labels: scores.map(s => s.label),
@@ -4825,7 +4840,7 @@ function renderTaskClassification(received, sent) {
   const dist = calcTaskDistribution(received, sent);
   const entries = Object.entries(dist).sort((a, b) => b[1].count - a[1].count);
 
-  new Chart(document.getElementById("c-tasks"), {
+  emailChart("c-tasks", {
     type: "doughnut",
     data: {
       labels: entries.map(([k]) => k),
@@ -4872,7 +4887,7 @@ function renderTaskTrend(received, sent) {
   const cats = Object.keys(TASK_COLORS);
   const labels = months.map(k => new Date(k + "-15").toLocaleDateString("en", { month: "short", year: "2-digit" }));
 
-  new Chart(document.getElementById("c-task-trend"), {
+  emailChart("c-task-trend", {
     type: "bar",
     data: {
       labels,
@@ -4918,7 +4933,7 @@ function renderThreadDepth(received, sent) {
   const labels = Object.keys(depthBuckets);
   const colors = ["#e2e8f0","#a78bfa","#6366f1","#4f46e5","#312e81"];
 
-  new Chart(document.getElementById("c-thread-depth"), {
+  emailChart("c-thread-depth", {
     type: "bar",
     data: {
       labels,
@@ -4940,7 +4955,7 @@ function renderParticipantDist(received, sent) {
   const labels = Object.keys(partBuckets);
   const colors = ["#bbf7d0","#6ee7b7","#34d399","#059669","#065f46"];
 
-  new Chart(document.getElementById("c-participants"), {
+  emailChart("c-participants", {
     type: "bar",
     data: {
       labels,
@@ -4959,7 +4974,7 @@ function renderParticipantDist(received, sent) {
 // ── Email length over time ───────────────────────
 function renderEmailLength(received, sent) {
   const { labels, recAvg, sentAvg } = calcMonthlyEmailLength(received, sent);
-  new Chart(document.getElementById("c-email-length"), {
+  emailChart("c-email-length", {
     type: "line",
     data: {
       labels,
@@ -4988,7 +5003,7 @@ function renderEmailLength(received, sent) {
 // ── Unique stakeholders per month ────────────────
 function renderStakeholders(received, sent) {
   const { labels, counts } = calcMonthlyStakeholders(received, sent);
-  new Chart(document.getElementById("c-stakeholders"), {
+  emailChart("c-stakeholders", {
     type: "line",
     data: {
       labels,
@@ -5017,7 +5032,7 @@ function renderStakeholders(received, sent) {
 // ── Response time trend (monthly avg hours) ──────
 function renderResponseTrend(received, sent) {
   const { labels, avgHours } = calcMonthlyResponseTrend(received, sent);
-  new Chart(document.getElementById("c-response-trend"), {
+  emailChart("c-response-trend", {
     type: "line",
     data: {
       labels,
@@ -5049,7 +5064,7 @@ function renderTopSendersOverTime(received, sent) {
   const { months, labels, topRecAddrs, recByMonth } = calcTopContactsOverTime(received, sent, 5);
   const palette = ["#6366f1","#f97066","#22c55e","#f59e0b","#06b6d4"];
 
-  new Chart(document.getElementById("c-senders-trend"), {
+  emailChart("c-senders-trend", {
     type: "line",
     data: {
       labels,
@@ -5090,7 +5105,7 @@ function renderTopRecipientsOverTime(received, sent) {
   const { months, labels, topSentAddrs, sentByMonth } = calcTopContactsOverTime(received, sent, 5);
   const palette = ["#f97066","#6366f1","#f59e0b","#22c55e","#a78bfa"];
 
-  new Chart(document.getElementById("c-recipients-trend"), {
+  emailChart("c-recipients-trend", {
     type: "line",
     data: {
       labels,
